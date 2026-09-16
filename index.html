@@ -459,6 +459,7 @@ function viewDash(el){
   if(A.manualCount)notes.push(`<div class="note">手入力の原価で計算した売上 ${yen(A.manualAmount)}（${A.manualCount}件）があります。請求書を登録すると、仕入単価に置き換わります。</div>`);
   if(A.nocostCount)notes.push(`<div class="note">原価のない売上 ${yen(A.nocost)}（${A.nocostCount}件：手数料・値引きなど）は、原価0円として粗利に含めています。</div>`);
   if(A.shippingCount)notes.push(`<div class="note">送料として受け取った ${yen(A.shipping)}（${A.shippingCount}件）は、商品の売上・粗利とは別にしています。</div>`);
+  {const hi=prodRows.filter(r=>r.key!=='__nocost'&&r.margin!=null&&r.margin>=0.8&&r.cost>0);if(hi.length)notes.push(`<div class="note warn">粗利率が80%を超える商品が${hi.length}点あります（表に「入数を確認」と表示）。販売のセットと仕入の単位が違う（例：10本セットで売り、1本ずつ仕入れている）のに、入数が1のままの可能性があります。<button class="linkbtn" data-go="sets">Bカートのセットで入数を確認</button></div>`)}
   if(lowCount)notes.push(`<div class="note">粗利率が${settings.lowMargin}%を下回る商品が${lowCount}点あります（表で赤く表示）。</div>`);
   const empty=!DB.sales.length;
   el.innerHTML=`
@@ -514,7 +515,7 @@ function drawDashTable(A){
     <td class="name">${esc(r.label)}</td><td class="n">${num(r.qty)}</td><td class="n">${yen(r.sales)}</td>
     ${isP?`<td class="n">${yen(r.avgSell)}</td><td class="n">${yen(r.avgCost)}</td>`:`<td class="n">${yen(r.cost)}</td>`}
     <td class="n ${r.gp<0?'neg':''}">${yen(r.gp)}</td><td class="n ${r.pid&&r.margin!=null&&r.margin<low?'low':''}">${r.pid||!isP?pct(r.margin):'—'}</td>
-    <td>${r.none?`<span class="tag warn">原価不明 ${r.none}件</span>`:''}${r.est?` <span class="tag est">推定 ${r.est}件</span>`:''}${r.manual?` <span class="tag buy">手入力原価 ${r.manual}件</span>`:''}</td></tr>`).join('');
+    <td>${r.none?`<span class="tag warn">原価不明 ${r.none}件</span>`:''}${r.est?` <span class="tag est">推定 ${r.est}件</span>`:''}${r.manual?` <span class="tag buy">手入力原価 ${r.manual}件</span>`:''}${r.pid&&r.margin!=null&&r.margin>=0.8&&r.cost>0?' <span class="tag warn">入数を確認</span>':''}</td></tr>`).join('');
   const t=$('#dtable');
   t.innerHTML=rows.length?`<table><thead>${head}</thead><tbody>${body}</tbody></table>`:`<p class="hint" style="padding:1rem">この期間の販売はありません。</p>`;
   t.querySelectorAll('[data-sort]').forEach(h=>h.onclick=()=>{if(dash.sort===h.dataset.sort)dash.dir*=-1;else{dash.sort=h.dataset.sort;dash.dir=h.dataset.sort==='label'?1:-1}drawDashTable(A)});
