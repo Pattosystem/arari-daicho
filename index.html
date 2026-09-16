@@ -754,7 +754,7 @@ async function importBcartProducts(file){
 function viewSets(el){
   const c=getCalc();const pmap=c.prodById;
   const shared=new Map();DB.sets.forEach(x=>{if(x.product_id)shared.set(x.product_id,(shared.get(x.product_id)||0)+1)});
-  const salesBySet=new Map();DB.sales.forEach(x=>{if(!x.setId)return;const r=salesBySet.get(String(x.setId))||{n:0,amount:0};r.n++;r.amount+=x.amount;salesBySet.set(String(x.setId),r)});
+  const salesBySet=new Map();DB.sales.forEach(x=>{if(isShippingKind(x.kind))return;const k=x.setId?String(x.setId):'n:'+normName(x.name)+'|'+normName(x.setName);const r=salesBySet.get(k)||{n:0,amount:0};r.n++;r.amount+=x.amount;salesBySet.set(k,r)});
   const isHint=x=>x.per_hint&&Number(x.per||1)!==x.per_hint;
   const isUnlinked=x=>!x.product_id||!pmap.has(x.product_id);
   let list=DB.sets.slice();
@@ -780,15 +780,14 @@ function viewSets(el){
     <p class="hint">「仕入商品」は原価を計算する単位です。中身が同じセットは同じ仕入商品にしてください（例：期間限定の別商品ページ）。「入数」は1セット売れたときに仕入商品がいくつ減るかで、10箱セットを箱単位で仕入れているなら10です。</p>
     ${hintCount?`<div class="note est" style="margin:.6rem 0">セット名から、入数が1ではなさそうなセットが${hintCount}件あります。仕入の単位と照らして確認してください。<button class="linkbtn" id="applyHints">候補の入数をすべて反映</button></div>`:''}
     ${unlinkedCount?`<div class="note warn" style="margin:.6rem 0">仕入商品に紐付いていないセットが${unlinkedCount}件あります。このセットの売上は粗利に入りません。</div>`:''}
-    ${list.length?`<div class="tablewrap"><table><thead><tr><th>Bカート商品</th><th>セットID</th><th>セット名</th><th>品番</th><th class="n">単価</th><th>状態</th><th>仕入商品</th><th class="n">入数</th><th class="n">販売実績</th><th></th></tr></thead><tbody>
-    ${list.slice(0,500).map(x=>{const first=x.bcart_product_id!==prevPid;prevPid=x.bcart_product_id;const sb=salesBySet.get(String(x.set_id));const sh=x.product_id?shared.get(x.product_id)||0:0;
-      return `<tr data-set="${esc(x.id)}"><td class="name">${first?esc(x.product_name):`<span class="sub">〃</span>`}${first&&x.product_status==='非表示'?' <span class="tag warn">商品非表示</span>':''}</td>
-      <td class="n">${esc(x.set_id)}</td><td>${esc(x.set_name)}</td><td>${esc(x.hinban||'')}</td><td class="n">${yen(x.price)}</td>
-      <td>${x.status==='表示'?'表示':`<span class="tag warn">${esc(x.status||'—')}</span>`}</td>
-      <td style="min-width:260px"><input list="prodlist" class="setprod" value="${esc(isUnlinked(x)?'':prodLabel(pmap.get(x.product_id)))}" placeholder="仕入商品を検索" aria-label="仕入商品">${sh>1?`<span class="sub">${sh}セットで共有</span>`:''}</td>
-      <td><input type="number" class="setper n" value="${esc(x.per??1)}" min="0" step="any" style="width:4.8rem" aria-label="入数">${isHint(x)?`<button class="btn small" data-hint="${x.per_hint}" style="margin-top:.2rem">候補 ${x.per_hint}</button>`:''}</td>
-      <td class="n">${sb?`${num(sb.n)}件<span class="sub">${yen(sb.amount)}</span>`:'—'}</td>
-      <td><button class="btn small" data-split title="このセットだけの仕入商品を新しく作ります">別の商品にする</button></td></tr>`}).join('')}
+    ${list.length?`<div class="tablewrap"><table class="settable"><thead><tr><th>Bカートの商品／セット</th><th class="n">単価</th><th>仕入商品</th><th class="n">入数</th><th class="n">販売実績</th></tr></thead><tbody>
+    ${list.slice(0,500).map(x=>{const first=x.bcart_product_id!==prevPid;prevPid=x.bcart_product_id;const sb=salesBySet.get(String(x.set_id))||salesBySet.get('n:'+normName(x.product_name)+'|'+normName(x.set_name));const sh=x.product_id?shared.get(x.product_id)||0:0;
+      return `<tr data-set="${esc(x.id)}"><td class="name">${first?`<strong>${esc(x.product_name)}</strong>`:`<span class="hint">〃</span>`}${first&&x.product_status==='非表示'?' <span class="tag warn">商品非表示</span>':''}
+        <span class="sub">${esc(x.set_name)}</span><span class="sub">セット${esc(x.set_id)}${x.hinban?'・'+esc(x.hinban):''}${x.status!=='表示'?` <span class="tag warn">${esc(x.status||'—')}</span>`:''}</span></td>
+      <td class="n">${yen(x.price)}</td>
+      <td style="min-width:220px"><input list="prodlist" class="setprod" value="${esc(isUnlinked(x)?'':prodLabel(pmap.get(x.product_id)))}" placeholder="仕入商品を検索" aria-label="仕入商品"><span class="sub">${sh>1?`${sh}セットで共有・`:''}<button class="linkbtn" data-split title="このセットだけの仕入商品を新しく作ります">別の商品にする</button></span></td>
+      <td><input type="number" class="setper n" value="${esc(x.per??1)}" min="0" step="any" style="width:4.5rem" aria-label="入数">${isHint(x)?`<button class="btn small" data-hint="${x.per_hint}" style="margin-top:.2rem;display:block">候補 ${x.per_hint}</button>`:''}</td>
+      <td class="n">${sb?`${num(sb.n)}件<span class="sub">${yen(sb.amount)}</span>`:'—'}</td></tr>`}).join('')}
     </tbody></table></div>${list.length>500?'<p class="hint">500件まで表示しています。絞り込みを使ってください。</p>':''}`:'<p class="hint">条件に合うセットはありません。</p>'}
   </section>`:''}`;
 
