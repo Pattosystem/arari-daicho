@@ -431,7 +431,7 @@ function render(){
   $('#tabs').innerHTML=TABS.map(([k,l])=>`<button class="tab ${k===cur?'on':''}" data-tab="${k}" ${k===cur?'aria-current="page"':''}>${l}${k==='sales'&&un?`<span class="dot" title="商品に紐付いていないコード">${un}</span>`:''}</button>`).join('');
   $('#storeBadge').innerHTML=authUser?`${esc(authUser.email||'')}　<button class="linkbtn" id="logoutBtn" style="color:var(--bar-muted)">ログアウト</button>`:'保存先：'+esc(backend.name);
   if($('#logoutBtn'))$('#logoutBtn').onclick=logout;
-  $('#banner').innerHTML=backendError?`<div class="banner">${esc(backendError)}</div>`:'';
+  $('#banner').innerHTML=backendError?`<div class="banner">${esc(backendError)}</div>`:(!SERVER_MODE&&/github\.io$/.test(location.hostname)?`<div class="banner">Supabaseの接続先がまだ設定されていないため、このブラウザの中だけに保存する形で動いています。index.html の APP_CONFIG を書き込んでアップロードし直してください（移設手順の5）。</div>`:'');
   if(chart){chart.destroy();chart=null}
   const v=$('#view');v.innerHTML='';
   ({dash:viewDash,sales:viewSales,sets:viewSets,purchases:viewPurchases,products:viewProducts,compare:viewCompare,settings:viewSettings})[cur](v);
@@ -1119,7 +1119,9 @@ let aiSample=null,aiState='checking',aiImages=null,aiMode=null,pdfQueue=[];
 })();
 function pdfZoneHtml(){
   if(aiState==='checking')return `<p class="hint">PDF読み取りの準備をしています…</p>`;
-  if(aiState==='unavailable')return `<p class="hint">PDFの読み取りは、claude.aiで開いたとき、または社内サーバー（Supabase）の設定があるときに使えます。ここでは下のCSV取込を使ってください。</p>`;
+  if(aiState==='unavailable')return /github\.io$/.test(location.hostname)
+    ?`<div class="note warn">PDFの読み取りがまだ使えない状態です。index.html の上の方にある APP_CONFIG に、SupabaseのURLとanon keyが書き込まれていません（移設手順の5）。書き込んだファイルをGitHubにアップロードし直すと、ログイン画面が出てPDFを置けるようになります。</div>`
+    :`<p class="hint">PDFの読み取りは、claude.aiで開いたとき、または社内サーバー（Supabase）の設定があるときに使えます。</p>`;
   if(!window.pdfjsLib)return `<p class="hint">PDFを開くライブラリを読み込めませんでした。ページを再読み込みしてください。</p>`;
   return `<label class="drop" id="pdfdrop"><input type="file" id="pdffile" accept="application/pdf,.pdf" multiple><strong>請求書のPDFを選ぶ</strong><br><span class="hint">複数まとめて選べます。ここにドラッグしても読み取れます。${aiMode==='function'?'読み取りにはAnthropic APIの利用料がかかります。':'読み取りには、あなたのClaudeの利用枠を使います。'}</span></label>
   <div id="pdfprog" aria-live="polite">${pdfQueue.map(q=>`<div class="note ${q.state==='error'?'warn':q.state==='done'?'':'est'}">${esc(q.name)}：${esc(q.msg)}</div>`).join('')}</div>`;
