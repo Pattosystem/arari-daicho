@@ -875,7 +875,7 @@ function viewPurchases(el){
       <input type="text" id="pfQ" value="${esc(pfilter.q)}" placeholder="商品・伝票番号で絞り込む" style="max-width:240px"></div></div>
     ${list.length?`<div class="tablewrap"><table><thead><tr><th>仕入日</th><th>仕入先</th><th>伝票番号</th><th>明細</th><th class="n">原価合計（円）</th><th></th></tr></thead><tbody>
     ${list.slice(0,300).map(v=>`<tr><td>${v.date}</td><td>${esc(supName(v.sid))}</td><td>${esc(v.no||'')}${v.rows[0].doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}</td>
-      <td>${v.rows.slice(0,3).map(r=>`${esc((pmap.get(r.product_id)||{}).name||'（削除された商品）')} × ${num(r.qty)}`).join('<br>')}${v.rows.length>3?`<span class="sub">ほか${v.rows.length-3}件</span>`:''}</td>
+      <td>${v.rows.slice(0,3).map(r=>`${esc(prodLabel(pmap.get(r.product_id)))} × ${num(r.qty)}　<span class="hint">原価単価 ${yen(unitCost(r))}</span>`).join('<br>')}${v.rows.length>3?`<span class="sub">ほか${v.rows.length-3}件</span>`:''}</td>
       <td class="n">${yen(v.total)}</td><td><button class="btn small" data-edit="${esc(v.vid)}">開く</button></td></tr>`).join('')}
     </tbody></table></div>${list.length>300?'<p class="hint">新しい順に300伝票まで表示しています。絞り込みを使ってください。</p>':''}`:'<p class="hint">該当する仕入はありません。</p>'}
   </section>
@@ -1340,12 +1340,33 @@ function openProduct(pid){
     ${psup.length?`<section><h3>仕入先の品目</h3><div class="tablewrap"><table><thead><tr><th>仕入先</th><th>SKU</th><th>品名（請求書）</th><th class="n">入数</th><th></th></tr></thead><tbody>${psup.map(x=>`<tr><td>${esc(x.supplier)}</td><td>${esc(x.sku||'')}</td><td>${esc(x.desc)}</td><td class="n">${num(x.per||1,2)}</td><td><button class="btn small" data-unsup="${esc(x.id)}">対応を解除</button></td></tr>`).join('')}</tbody></table></div><p class="hint">解除すると、次に同じ品目を取り込むときに仕入商品を選び直します。登録済みの仕入は変わりません。</p></section>`:''}
     ${psets.length?`<section><h3>この商品として売っているBカートのセット</h3><div class="tablewrap"><table><thead><tr><th>セットID</th><th>商品名／セット名</th><th class="n">入数</th><th class="n">単価</th><th>状態</th></tr></thead><tbody>${psets.map(x=>`<tr><td>${esc(x.set_id)}</td><td>${esc(x.product_name)}<span class="sub">${esc(x.set_name)}</span></td><td class="n">${num(x.per||1,2)}</td><td class="n">${yen(x.price)}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table></div></section>`:''}
     ${maps.length?`<section><h3>紐付けている販売コード</h3><p>${maps.map(m=>esc(m.id.slice(2))).join('、')}</p></section>`:''}
+    <section><h3>別の商品にまとめる</h3>
+      <p class="hint">同じ中身の商品が2つできてしまったときに使います（例：請求書から作った英語名の商品と、Bカートから作った商品）。この商品の仕入・請求書の品目の対応・Bカートのセットと販売の紐付けをすべて、選んだ商品に移してから、この商品を削除します。</p>
+      <datalist id="mergelist">${DB.products.filter(x=>x.id!==pid).map(x=>`<option value="${esc(prodLabel(x))}"></option>`).join('')}</datalist>
+      <div class="row" style="flex-wrap:nowrap;margin-top:.4rem"><input list="mergelist" id="mgTo" placeholder="まとめ先の商品を検索（商品名かコード）"><button class="btn" id="mgGo">この商品をまとめる</button></div>
+    </section>
     <section><h3>商品情報を編集</h3>
       <div class="grid g3"><label class="field"><span>商品コード</span><input id="epCode" value="${esc(p.code)}"></label><label class="field"><span>商品名</span><input id="epName" value="${esc(p.name)}"></label><label class="field"><span>区分</span><input id="epCat" value="${esc(p.category||'')}"></label><label class="field"><span>仕入単位</span><input id="epUnit" value="${esc(p.unit||'')}" placeholder="箱、本、vialなど"></label><label class="field"><span>手入力の原価（円・1仕入単位）</span><input id="epStd" type="number" min="0" step="any" value="${esc(p.std_cost||'')}" placeholder="仕入がないときに使います"></label></div>
       <label class="field" style="margin-top:.6rem"><span>メモ</span><input id="epMemo" value="${esc(p.memo||'')}"></label>
       <div class="actions"><button class="btn danger" id="epDel">商品を削除</button><button class="btn primary" id="epSave">変更を保存</button></div>
     </section>`,true);
   d.querySelectorAll('[data-unsup]').forEach(b=>b.onclick=async()=>{await removeRows('supitems',b.dataset.unsup);closeModal();openProduct(pid);toast('対応を解除しました')});
+  $('#mgGo',d).onclick=async()=>{
+    const to=findProduct($('#mgTo',d).value);
+    if(!to||to.id===pid){toast('まとめ先の商品を候補から選んでください','err');return}
+    const cm=DB.codemap.filter(m=>m.product_id===pid),si=DB.supitems.filter(x=>x.product_id===pid);
+    closeModal();
+    if(!await askConfirm(`「${prodLabel(p)}」を「${prodLabel(to)}」にまとめます。\n仕入${purchases.length}件・請求書の品目${si.length}件・Bカートのセット${psets.length}件・販売の紐付け${cm.length}件を移し、「${prodLabel(p)}」は削除します。\n数量の単位（箱・本など）が同じ商品どうしでだけ使ってください。`,'まとめる',false))return;
+    try{
+      if(purchases.length)await save('purchases',purchases.map(x=>Object.assign({},x,{product_id:to.id})));
+      if(si.length)await save('supitems',si.map(x=>Object.assign({},x,{product_id:to.id})));
+      if(psets.length)await save('sets',psets.map(x=>Object.assign({},x,{product_id:to.id})));
+      if(cm.length)await save('codemap',cm.map(x=>Object.assign({},x,{product_id:to.id})));
+      if(!(Number(to.std_cost)>0)&&Number(p.std_cost)>0)await save('products',Object.assign({},to,{std_cost:p.std_cost}));
+      await removeRows('products',pid);
+      toast(`「${to.name}」にまとめました`);render();
+    }catch(e){}
+  };
   $('#epSave',d).onclick=async()=>{const name=$('#epName',d).value.trim(),code=$('#epCode',d).value.trim();if(!name){toast('商品名を入れてください','err');return}
     if(code&&DB.products.some(x=>x.code===code&&x.id!==pid)){toast(`コード「${code}」は別の商品で使われています`,'err');return}
     await save('products',Object.assign({},p,{name,code,category:$('#epCat',d).value.trim(),unit:$('#epUnit',d).value.trim(),std_cost:Number($('#epStd',d).value)>0?Number($('#epStd',d).value):null,memo:$('#epMemo',d).value.trim()}));closeModal();toast('保存しました');render()};
