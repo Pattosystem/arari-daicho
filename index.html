@@ -1,0 +1,1562 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>粗利台帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#EEF1EF;--surface:#FFFFFF;--surface2:#F5F7F6;--ink:#16211F;--muted:#5B6B68;--line:#D3DBD8;
+  --accent:#0E6E5C;--accent-soft:#DCEFEA;--buy:#36449A;--buy-soft:#E4E7F6;
+  --warn:#B3261E;--warn-soft:#F9E3E0;--est:#855C00;--est-soft:#F5ECD4;
+  --bar:#1B2826;--bar-ink:#E6EEEB;--bar-muted:#9FB3AE;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#101816;--surface:#17221F;--surface2:#1C2926;--ink:#E3ECE9;--muted:#95A8A3;--line:#2B3B37;
+    --accent:#4EC2A5;--accent-soft:#173A33;--buy:#98A3F2;--buy-soft:#232A4A;
+    --warn:#FF8F85;--warn-soft:#3F1F1C;--est:#E7BE5C;--est-soft:#3A2F14;
+    --bar:#0C1311;--bar-ink:#E3ECE9;--bar-muted:#8CA09B;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101816;--surface:#17221F;--surface2:#1C2926;--ink:#E3ECE9;--muted:#95A8A3;--line:#2B3B37;
+  --accent:#4EC2A5;--accent-soft:#173A33;--buy:#98A3F2;--buy-soft:#232A4A;
+  --warn:#FF8F85;--warn-soft:#3F1F1C;--est:#E7BE5C;--est-soft:#3A2F14;
+  --bar:#0C1311;--bar-ink:#E3ECE9;--bar-muted:#8CA09B;color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",Meiryo,sans-serif;font-size:15px;line-height:1.65}
+.n{font-family:"BIZ UDGothic","BIZ UDPGothic","Hiragino Sans",sans-serif;text-align:right;white-space:nowrap}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{margin:0;line-height:1.35}
+h2{font-size:1.05rem}
+h3{font-size:.95rem}
+p{margin:.3rem 0}
+a{color:var(--accent)}
+
+header.top{position:sticky;top:0;z-index:20;background:var(--bar);color:var(--bar-ink)}
+.topin{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:1.25rem;padding:0 1rem;flex-wrap:wrap}
+.brand{font-weight:700;font-size:1.1rem;padding:.7rem 0;letter-spacing:.04em}
+#tabs{display:flex;gap:.1rem;overflow-x:auto;flex:1;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{background:none;border:0;color:var(--bar-muted);padding:.8rem .8rem .7rem;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;position:relative}
+.tab:hover{color:var(--bar-ink)}
+.tab.on{color:var(--bar-ink);border-bottom-color:var(--accent)}
+.dot{display:inline-block;min-width:1.3em;padding:0 .35em;margin-left:.35em;border-radius:1em;background:var(--warn);color:#fff;font-size:.72rem;line-height:1.35em;text-align:center}
+#storeBadge{font-size:.8rem;color:var(--bar-muted);white-space:nowrap}
+
+main{max-width:1240px;margin:0 auto;padding:1.25rem 1rem 4rem}
+.banner{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);padding:.6rem .9rem;border-radius:6px;margin:1rem auto 0;max-width:1208px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:1.1rem 1.2rem;margin-bottom:1rem}
+.card > h2{margin-bottom:.7rem}
+.hint{color:var(--muted);font-size:.85rem}
+.row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:.7rem}
+.spread h2{margin:0}
+
+.btn{border:1px solid var(--line);background:var(--surface);padding:.45rem .9rem;border-radius:6px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#07130F}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#07130F}}
+.btn.danger{color:var(--warn);border-color:var(--warn)}
+.btn.small{padding:.2rem .55rem;font-size:.85rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.actions{display:flex;gap:.6rem;justify-content:flex-end;flex-wrap:wrap;margin-top:1rem}
+.actions.left{justify-content:flex-start}
+
+input[type=text],input[type=number],input[type=date],input[type=password],input:not([type]),select,textarea{border:1px solid var(--line);background:var(--surface2);border-radius:6px;padding:.4rem .55rem;min-width:0;width:100%}
+textarea{font-family:"BIZ UDGothic",monospace;font-size:.85rem}
+.field{display:flex;flex-direction:column;gap:.2rem;font-size:.85rem;color:var(--muted)}
+.field > span{white-space:nowrap}
+.req{color:var(--warn);font-weight:400;font-size:.75rem;margin-left:.3em}
+.grid{display:grid;gap:.7rem 1rem}
+.g4{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.g3{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:.45rem .6rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{background:var(--surface2);font-weight:700;color:var(--muted);font-size:.8rem;white-space:nowrap;position:sticky;top:0}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--ink)}
+th.n,td.n{text-align:right}
+tbody tr:last-child td{border-bottom:0}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--surface2)}
+td.name{min-width:14rem}
+.sub{display:block;color:var(--muted);font-size:.78rem}
+.tag{display:inline-block;padding:0 .45em;border-radius:4px;font-size:.75rem;line-height:1.6;white-space:nowrap}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.est{background:var(--est-soft);color:var(--est)}
+.tag.ok{background:var(--accent-soft);color:var(--accent)}
+.tag.buy{background:var(--buy-soft);color:var(--buy)}
+.low{color:var(--warn);font-weight:700}
+.neg{color:var(--warn)}
+
+/* 期間 */
+.period{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.1rem}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;padding:.4rem .8rem;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.range{display:flex;align-items:center;gap:.4rem}
+.range input{width:auto}
+
+/* 粗利の式 */
+.eq{display:flex;align-items:flex-end;gap:.4rem 1.4rem;flex-wrap:wrap;padding:.4rem 0 1rem;border-bottom:2px solid var(--ink);margin-bottom:.8rem}
+.term .l{font-size:.85rem;color:var(--muted)}
+.term .v{font-size:clamp(1.7rem,4.2vw,2.9rem);font-weight:700;line-height:1.1;text-align:left}
+.term.gp .v{color:var(--accent)}
+.term.gp .v.neg{color:var(--warn)}
+.term .rate{display:inline-block;margin-left:.4rem;font-weight:700;color:var(--ink)}
+.op{font-size:clamp(1.4rem,3vw,2.2rem);color:var(--muted);line-height:1.2;padding-bottom:.1rem}
+.notes{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1.2rem}
+.note{font-size:.88rem;padding:.35rem .7rem;border-left:3px solid var(--line);background:var(--surface)}
+.note.warn{border-color:var(--warn)}
+.note.est{border-color:var(--est)}
+.chartbox{position:relative;height:280px}
+
+/* 取込 */
+.drop{display:block;width:100%;border:2px dashed var(--line);border-radius:8px;padding:1.6rem;text-align:center;background:var(--surface2);cursor:pointer;line-height:1.7}
+.drop strong{display:inline-block;margin-bottom:.2rem}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop input{display:none}
+.stat{display:flex;gap:1.5rem;flex-wrap:wrap;margin:.6rem 0}
+.stat b{font-size:1.2rem}
+
+/* 仕入伝票 */
+table.lines td{padding:.3rem .35rem}
+table.lines input{padding:.3rem .45rem}
+table.lines .w-qty{width:6rem}
+table.lines .w-price{width:9rem}
+.vtotal{display:flex;gap:1.5rem;justify-content:flex-end;flex-wrap:wrap;margin-top:.6rem;font-size:.9rem}
+.vtotal b{font-size:1.05rem}
+details.card > summary{cursor:pointer;font-weight:700}
+details.card[open] > summary{margin-bottom:.7rem}
+
+/* 比較 */
+.cmp{border-top:1px solid var(--line);padding:.9rem 0}
+.cmp:first-of-type{border-top:0}
+.cmp-head{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:baseline;margin-bottom:.5rem}
+.barcell{width:30%;min-width:120px}
+.plines{display:flex;flex-direction:column;gap:.6rem}
+.pline{border:1px solid var(--line);border-radius:6px;padding:.6rem .75rem;background:var(--surface2)}
+.pl-head{display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.45rem;font-weight:700}
+.pl-sku{font-weight:400;color:var(--muted);font-size:.85rem}
+.pl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:.5rem .7rem;align-items:end}
+.pl-grid .pl-prod{grid-column:1/-1}
+.pl-grid input{background:var(--surface)}
+.pl-uc{font-size:1.05rem;color:var(--ink);text-align:left;padding:.35rem 0}
+.bar{height:.55rem;border-radius:3px;background:var(--buy);opacity:.75}
+.bar.best{background:var(--accent);opacity:1}
+
+/* モーダル */
+#modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 1rem;overflow-y:auto}
+#modal[hidden]{display:none}
+.scrim{position:fixed;inset:0;background:rgba(10,20,18,.5)}
+.dialog{position:relative;background:var(--surface);border-radius:10px;padding:1.3rem 1.4rem;width:100%;max-width:520px;border:1px solid var(--line)}
+.dialog.wide{max-width:980px}
+.dialog .x{position:absolute;right:.8rem;top:.7rem;background:none;border:0;font-size:1.4rem;cursor:pointer;color:var(--muted)}
+.dialog section{margin-top:1.1rem}
+.dialog section h3{margin-bottom:.4rem}
+.confirm-msg{white-space:pre-wrap}
+
+#toasts{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:.4rem;align-items:center;width:max-content;max-width:92vw}
+.toast{background:var(--ink);color:var(--bg);padding:.55rem 1rem;border-radius:6px;font-size:.9rem}
+.toast.err{background:var(--warn);color:#fff}
+
+pre.sql{background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:.7rem;font-size:.78rem;overflow-x:auto;max-height:260px;font-family:"BIZ UDGothic",monospace}
+.radio{display:flex;gap:.5rem;align-items:flex-start;margin:.35rem 0;cursor:pointer}
+.radio input{margin-top:.35rem}
+.empty h2{margin-bottom:.4rem}
+
+@media (max-width:640px){
+  main{padding:1rem .7rem 4rem}
+  .card{padding:.9rem .85rem}
+  .eq{gap:.2rem .8rem}
+  .range{width:100%}
+  .range input{flex:1}
+  #storeBadge{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="topin"><div class="brand">粗利台帳</div><nav id="tabs" aria-label="画面"></nav><div id="storeBadge"></div></div></header>
+<div id="banner"></div>
+<main id="view"><p class="hint">読み込み中…</p></main>
+<div id="modal" hidden></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+/* ===== 社内サーバー（GitHub Pages＋Supabase）で使うときの設定 =====
+   Supabaseの Project Settings → API にある値を入れてください。
+   空のままなら、このブラウザの中に保存する形で動きます。 */
+var APP_CONFIG={
+  supabaseUrl:'',        // 例：'https://abcdefgh.supabase.co'
+  supabaseAnonKey:'',    // 例：'eyJhbGciOi...'（anon public のキー）
+  pdfFunction:'read-invoice'
+};
+</script>
+<script>
+'use strict';
+/* ========== 基本 ========== */
+const TABLES=['products','suppliers','purchases','sales','codemap','batches','sets','supitems','rates'];
+const DB={};TABLES.forEach(t=>DB[t]=[]);
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const DEFAULT_SETTINGS={costMethod:'latest',salesTaxIncluded:false,taxRate:10,lowMargin:15,backend:'local',sbUrl:'',sbKey:'',saleMapping:null,fx:{KRW:0.108,USD:150,EUR:162,GBP:190}};
+let settings=Object.assign({},DEFAULT_SETTINGS,LS.get('arari:settings',{}));
+settings.fx=Object.assign({},DEFAULT_SETTINGS.fx,settings.fx||{});
+if(!settings.costV2){settings.costMethod='latest';settings.costV2=true;try{localStorage.setItem('arari:settings',JSON.stringify(settings))}catch(e){}}
+const saveSettings=()=>LS.set('arari:settings',settings);
+
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const uid=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const yen=n=>(n==null||!isFinite(n))?'—':(n<0?'−¥':'¥')+Math.round(Math.abs(n)).toLocaleString('ja-JP');
+const num=(n,d=0)=>(n==null||!isFinite(n))?'—':Number(n).toLocaleString('ja-JP',{maximumFractionDigits:d});
+const pct=r=>(r==null||!isFinite(r))?'—':(r*100).toFixed(1)+'%';
+function toHalf(s){return String(s).replace(/[！-～]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/　/g,' ')}
+function parseNum(v){if(v==null)return NaN;let s=toHalf(v).replace(/[¥￥,円\s]/g,'').replace(/^\((.*)\)$/,'-$1').replace(/^▲/,'-');if(s===''||s==='-')return NaN;return Number(s)}
+function parseDate(v){const s=toHalf(v||'').trim();let m=s.match(/(\d{4})\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})/);if(!m)m=s.match(/^(\d{4})(\d{2})(\d{2})/);if(!m)return null;const y=+m[1],mo=+m[2],d=+m[3];if(mo<1||mo>12||d<1||d>31)return null;return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
+const isoLocal=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function monthRange(off){const n=new Date();return [isoLocal(new Date(n.getFullYear(),n.getMonth()+off,1)),isoLocal(new Date(n.getFullYear(),n.getMonth()+off+1,0))]}
+function hash(str){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<str.length;i++){const ch=str.charCodeAt(i);h1=Math.imul(h1^ch,2654435761);h2=Math.imul(h2^ch,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return(4294967296*(2097151&h2)+(h1>>>0)).toString(36)}
+
+/* ========== 保存先 ========== */
+const LocalBackend={
+  db:null,name:'この端末',
+  open(){return new Promise((res,rej)=>{if(this.db)return res();if(!window.indexedDB)return rej(new Error('IndexedDBが使えません'));const r=indexedDB.open('arari-daicho',4);r.onupgradeneeded=()=>{TABLES.forEach(t=>{if(!r.result.objectStoreNames.contains(t))r.result.createObjectStore(t,{keyPath:'id'})})};r.onsuccess=()=>{this.db=r.result;res()};r.onerror=()=>rej(r.error||new Error('開けません'))})},
+  async loadAll(){await this.open();const out={};for(const t of TABLES){out[t]=await new Promise((res,rej)=>{const q=this.db.transaction(t).objectStore(t).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}return out},
+  put(t,rows){return new Promise((res,rej)=>{const tx=this.db.transaction(t,'readwrite');const st=tx.objectStore(t);rows.forEach(r=>st.put(r));tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})},
+  del(t,ids){return new Promise((res,rej)=>{const tx=this.db.transaction(t,'readwrite');const st=tx.objectStore(t);ids.forEach(i=>st.delete(i));tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})},
+  async clear(){await this.open();for(const t of TABLES){await new Promise((res,rej)=>{const tx=this.db.transaction(t,'readwrite');tx.objectStore(t).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}}
+};
+const RemoteBackend={
+  client:null,name:'Supabase',
+  init(url,key,persist){this.client=window.supabase.createClient(url,key,{auth:{persistSession:!!persist,autoRefreshToken:!!persist}})},
+  async loadAll(){const out={};for(const t of TABLES){const rows=[];for(let from=0;;from+=1000){const{data,error}=await this.client.from('arari_'+t).select('id,data').order('id').range(from,from+999);if(error)throw new Error(error.message);rows.push(...data.map(d=>d.data));if(data.length<1000)break}out[t]=rows}return out},
+  async put(t,rows){for(let i=0;i<rows.length;i+=500){const chunk=rows.slice(i,i+500).map(r=>({id:r.id,data:r,updated_at:new Date().toISOString()}));const{error}=await this.client.from('arari_'+t).upsert(chunk);if(error)throw new Error(error.message)}},
+  async del(t,ids){for(let i=0;i<ids.length;i+=200){const{error}=await this.client.from('arari_'+t).delete().in('id',ids.slice(i,i+200));if(error)throw new Error(error.message)}},
+  async clear(){for(const t of TABLES){const{error}=await this.client.from('arari_'+t).delete().neq('id','');if(error)throw new Error(error.message)}}
+};
+const MemoryBackend={name:'保存なし',async loadAll(){return{}},async put(){},async del(){},async clear(){}};
+let backend=MemoryBackend,backendError=null;
+
+let authUser=null;
+const SERVER_MODE=!!(APP_CONFIG.supabaseUrl&&APP_CONFIG.supabaseAnonKey);
+async function initBackend(){
+  backendError=null;
+  if(SERVER_MODE){backend=RemoteBackend;return}
+  if(settings.backend==='supabase'){
+    try{
+      if(!window.supabase)throw new Error('Supabaseのライブラリを読み込めませんでした');
+      if(!settings.sbUrl||!settings.sbKey)throw new Error('SupabaseのURLとanon keyが未設定です');
+      RemoteBackend.init(settings.sbUrl,settings.sbKey);backend=RemoteBackend;return;
+    }catch(e){backendError='Supabaseに接続できないため、この端末に保存しています：'+e.message}
+  }
+  try{await LocalBackend.open();backend=LocalBackend}
+  catch(e){backend=MemoryBackend;backendError='データを保存できない環境です。ページを閉じると消えます（'+e.message+'）'}
+}
+async function loadAll(){
+  try{const d=await backend.loadAll();TABLES.forEach(t=>DB[t]=d[t]||[])}
+  catch(e){backendError='データを読み込めません：'+e.message+'。設定の保存先を確認してください。'}
+  invalidate();
+}
+async function save(t,rows){
+  rows=[].concat(rows);if(!rows.length)return;
+  const map=new Map(DB[t].map(r=>[r.id,r]));rows.forEach(r=>map.set(r.id,r));DB[t]=[...map.values()];invalidate();
+  try{await backend.put(t,rows)}catch(e){toast('保存できませんでした：'+e.message,'err');throw e}
+}
+async function removeRows(t,ids){
+  ids=[].concat(ids);if(!ids.length)return;const set=new Set(ids);DB[t]=DB[t].filter(r=>!set.has(r.id));invalidate();
+  try{await backend.del(t,ids)}catch(e){toast('削除できませんでした：'+e.message,'err');throw e}
+}
+
+/* ========== UI共通 ========== */
+function toast(msg,kind=''){const t=document.createElement('div');t.className='toast '+kind;t.textContent=msg;$('#toasts').appendChild(t);setTimeout(()=>t.remove(),kind==='err'?7000:3200)}
+function openModal(html,wide){const m=$('#modal');m.innerHTML=`<div class="scrim"></div><div class="dialog ${wide?'wide':''}" role="dialog" aria-modal="true"><button class="x" aria-label="閉じる">×</button>${html}</div>`;m.hidden=false;$('.scrim',m).onclick=closeModal;$('.x',m).onclick=closeModal;return $('.dialog',m)}
+function closeModal(){const m=$('#modal');m.hidden=true;m.innerHTML=''}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden)closeModal()});
+function askConfirm(msg,ok='削除する',danger=true){return new Promise(res=>{const d=openModal(`<p class="confirm-msg">${esc(msg)}</p><div class="actions"><button class="btn" data-no>やめる</button><button class="btn ${danger?'danger':'primary'}" data-yes>${esc(ok)}</button></div>`);const done=v=>{closeModal();res(v)};$('[data-no]',d).onclick=()=>done(false);$('[data-yes]',d).onclick=()=>done(true);$('.x',d).onclick=()=>done(false);$('#modal .scrim').onclick=()=>done(false);$('[data-yes]',d).focus()})}
+
+const prodLabel=p=>p?((p.code?p.code+'｜':'')+p.name):'（削除された商品）';
+function findProduct(input){const s=String(input||'').trim();if(!s)return null;return DB.products.find(p=>prodLabel(p)===s)||DB.products.find(p=>p.code&&p.code===s)||DB.products.find(p=>p.name===s)||DB.products.find(p=>normName(p.name)===normName(s))||(()=>{const k=t=>toHalf(normName(t)).toLowerCase();const ks=k(s);return DB.products.find(p=>k(prodLabel(p))===ks||k(p.name)===ks)||null})()}
+const supName=id=>(DB.suppliers.find(s=>s.id===id)||{}).name||'（不明）';
+function datalists(){return `<datalist id="prodlist">${DB.products.map(p=>`<option value="${esc(prodLabel(p))}"></option>`).join('')}</datalist><datalist id="suplist">${DB.suppliers.map(s=>`<option value="${esc(s.name)}"></option>`).join('')}</datalist>`}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+
+/* ========== 原価計算 ========== */
+let rateIdx=null,rateSrc=null;
+function rateEntry(cur,date){
+  cur=String(cur||'JPY').toUpperCase();if(cur==='JPY')return{rate:1,from:''};
+  if(rateSrc!==DB.rates){rateSrc=DB.rates;rateIdx=new Map();DB.rates.forEach(r=>{if(!(Number(r.rate)>0))return;const a=rateIdx.get(r.currency)||[];a.push(r);rateIdx.set(r.currency,a)});rateIdx.forEach(a=>a.sort((x,y)=>y.from.localeCompare(x.from)))}
+  const a=rateIdx.get(cur);if(!a||!date)return null;
+  return a.find(r=>r.from<=date)||null;
+}
+const rateFor=(cur,date)=>{const e=rateEntry(cur,date);return e?Number(e.rate):null};
+function fxOf(p){const cur=String(p.currency||'JPY').toUpperCase();if(cur==='JPY')return 1;if(p.fx_mode==='table')return rateFor(cur,p.date);return Number(p.fx)>0?Number(p.fx):null}
+const unitCost=p=>{if(!p.qty)return 0;const fx=fxOf(p);if(fx==null)return NaN;return((Number(p.unit_price)||0)*fx*p.qty+(Number(p.extra_fx)||0)*fx+(Number(p.extra)||0))/p.qty};
+function rateInfoHtml(cur,date){
+  if(cur==='JPY')return '';
+  const e=rateEntry(cur,parseDate(date)||'');
+  return e?`設定のレート <b class="n">${num(e.rate,4)}</b>円（${esc(e.from)}から適用）`:`<span class="low">${esc(cur)}の${date?esc(parseDate(date)||date)+'時点の':''}レートが設定にありません</span> <button class="linkbtn" data-go="settings">設定で追加</button>`;
+}
+const codeKey=(code,name)=>{code=String(code||'').trim();return code?'c:'+code:'n:'+String(name||'').trim()};
+let calcCache=null;
+function invalidate(){calcCache=null}
+function getCalc(){if(!calcCache)calcCache=compute();return calcCache}
+const normName=t=>String(t||'').replace(/[\s　]+/g,' ').trim();
+const saleKey=s=>s.setId?'b:'+String(s.setId).trim():String(s.code||'').trim()?'c:'+String(s.code).trim():'n:'+normName(s.name)+(s.setName?'|'+normName(s.setName):'');
+const isShippingKind=k=>!!k&&!/^商品$/.test(String(k).trim());
+const AUTO_NOCOST=/^値引き?$|^割引$|^クーポン|^ポイント(利用|値引)/;
+function compute(){
+  const cm=new Map(DB.codemap.map(m=>[m.id,m]));
+  const prodById=new Map(DB.products.map(p=>[p.id,p]));
+  const prodByCode=new Map();DB.products.forEach(p=>{const c=String(p.code||'').trim();if(c&&!prodByCode.has(c))prodByCode.set(c,p)});
+  const setById=new Map(DB.sets.map(x=>[String(x.set_id),x]));
+  const setByHinban=new Map();DB.sets.forEach(x=>{if(x.hinban&&!setByHinban.has(x.hinban))setByHinban.set(x.hinban,x)});
+  const nameCount=new Map(),setByName=new Map();
+  const addName=(k,x)=>{nameCount.set(k,(nameCount.get(k)||0)+1);setByName.set(k,x)};
+  DB.sets.forEach(x=>{addName('ps|'+x.product_name+'|'+x.set_name,x);addName('p|'+x.product_name,x);if(x.set_name)addName('s|'+x.set_name,x)});
+  const byName=k=>nameCount.get(k)===1?setByName.get(k):null;
+  const fromSet=x=>(x&&x.product_id&&prodById.has(x.product_id))?{pid:x.product_id,per:Number(x.per)||1}:null;
+  const resolve=s=>{
+    const key=saleKey(s);
+    if(isShippingKind(s.kind))return{shipping:true,key};
+    if(s.setId){const st=setById.get(String(s.setId).trim());const r=fromSet(st);if(r)return Object.assign(r,{key})}
+    const m=cm.get(key);
+    if(m){if(m.excluded)return{excluded:true,key};if(m.nocost)return{nocost:true,key};if(prodById.has(m.product_id))return{pid:m.product_id,per:Number(m.per)||1,key}}
+    const nm=normName(s.name),sn=normName(s.setName);
+    if(nm){const r=fromSet(byName('ps|'+nm+'|'+sn));if(r)return Object.assign(r,{key})}
+    const code=String(s.code||'').trim();
+    if(code){const r=fromSet(setByHinban.get(code));if(r)return Object.assign(r,{key});if(prodByCode.has(code))return{pid:prodByCode.get(code).id,per:1,key}}
+    if(!s.setId&&nm){const r=(sn?fromSet(byName('s|'+sn)):null)||fromSet(byName('p|'+nm));if(r)return Object.assign(r,{key})}
+    if(AUTO_NOCOST.test(nm))return{nocost:true,auto:true,key};
+    return{key};
+  };
+  const events=new Map();const push=(pid,e)=>{if(!events.has(pid))events.set(pid,[]);events.get(pid).push(e)};
+  let noRate=0,noRateCur=new Set();for(const p of DB.purchases){if(!prodById.has(p.product_id))continue;const cost=unitCost(p);if(!isFinite(cost)){noRate++;noRateCur.add(p.currency);continue}push(p.product_id,{t:0,date:p.date,qty:Number(p.qty)||0,cost,p})}
+  const saleInfo=new Map(),unmapped=new Map();
+  for(const s of DB.sales){
+    const r=resolve(s);
+    const info={pid:r.pid||null,per:r.per||1,excluded:!!r.excluded,shipping:!!r.shipping,nocost:!!r.nocost,unit:null,status:'none'};saleInfo.set(s.id,info);
+    if(info.excluded||info.shipping||info.nocost)continue;
+    if(!info.pid){const u=unmapped.get(r.key)||{key:r.key,setId:s.setId||'',code:s.code,name:s.name,setName:s.setName||'',count:0,amount:0};u.count++;u.amount+=s.amount;unmapped.set(r.key,u);continue}
+    push(info.pid,{t:1,date:s.date,qty:(Number(s.qty)||0)*info.per,info});
+  }
+  const stock=new Map();
+  for(const [pid,evs] of events){
+    evs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.t-b.t);
+    const first=evs.find(e=>e.t===0);const firstCost=first?first.cost:null;
+    const pr=prodById.get(pid);const manual=pr&&Number(pr.std_cost)>0?Number(pr.std_cost):null;
+    let qty=0,avg=null,last=null;
+    for(const e of evs){
+      if(e.t===0){
+        if(avg==null||qty<=0){avg=e.cost;qty+=e.qty}
+        else{avg=(avg*qty+e.cost*e.qty)/(qty+e.qty);qty+=e.qty}
+        last={cost:e.cost,date:e.date,supplier_id:e.p.supplier_id};
+      }else{
+        let unit=settings.costMethod==='latest'?(last&&last.cost):avg,status;
+        if(unit==null){if(manual!=null){unit=manual;status='manual'}else if(firstCost!=null){unit=firstCost;status='est'}else status='none'}
+        else status=(settings.costMethod==='moving'&&e.qty>0&&qty<e.qty)?'est':'ok';
+        e.info.unit=unit;e.info.status=status;qty-=e.qty;
+      }
+    }
+    stock.set(pid,{qty,avg,last});
+  }
+  return{saleInfo,unmapped:[...unmapped.values()].sort((a,b)=>b.amount-a.amount),stock,prodById,noRate,noRateCur:[...noRateCur]};
+}
+function aggregate(from,to){
+  const c=getCalc();
+  const A={sales:0,costedSales:0,cost:0,noneAmount:0,noneCount:0,estCount:0,unmappedAmount:0,unmappedCount:0,shipping:0,shippingCount:0,nocost:0,nocostCount:0,byProd:new Map(),byCust:new Map(),byMonth:new Map()};
+  const bump=(map,key)=>{let r=map.get(key);if(!r){r={key,qty:0,lines:0,sales:0,costedSales:0,cost:0,none:0,est:0,manual:0,noneQty:0,noneSales:0};map.set(key,r)}return r};
+  for(const s of DB.sales){
+    if(from&&s.date<from)continue;if(to&&s.date>to)continue;
+    const i=c.saleInfo.get(s.id);if(!i||i.excluded)continue;
+    if(i.shipping){A.shipping+=s.amount;A.shippingCount++;continue}
+    if(i.nocost){A.nocost+=s.amount;A.nocostCount++;A.sales+=s.amount;A.costedSales+=s.amount;
+      [bump(A.byProd,'__nocost'),bump(A.byCust,s.customer||'（取引先名なし）'),bump(A.byMonth,s.date.slice(0,7))].forEach(r=>{r.lines++;r.sales+=s.amount;r.costedSales+=s.amount});continue}
+    if(!i.pid){A.unmappedAmount+=s.amount;A.unmappedCount++;continue}
+    A.sales+=s.amount;
+    const tg=[bump(A.byProd,i.pid),bump(A.byCust,s.customer||'（取引先名なし）'),bump(A.byMonth,s.date.slice(0,7))];
+    const q=s.qty*(i.per||1);
+    tg.forEach(r=>{r.qty+=q;r.lines++;r.sales+=s.amount});
+    if(i.unit==null){A.noneAmount+=s.amount;A.noneCount++;tg.forEach(r=>{r.none++;r.noneQty+=q;r.noneSales+=s.amount});continue}
+    const cost=i.unit*q;A.costedSales+=s.amount;A.cost+=cost;
+    if(i.status==='est'){A.estCount++;tg.forEach(r=>r.est++)}
+    if(i.status==='manual'){A.manualCount=(A.manualCount||0)+1;A.manualAmount=(A.manualAmount||0)+s.amount;tg.forEach(r=>r.manual++)}
+    tg.forEach(r=>{r.costedSales+=s.amount;r.cost+=cost});
+  }
+  const fin=r=>{r.gp=r.costedSales-r.cost;r.margin=r.costedSales?r.gp/r.costedSales:null};
+  fin(A);[A.byProd,A.byCust,A.byMonth].forEach(m=>m.forEach(fin));
+  return A;
+}
+function purchaseStats(from){
+  const out=new Map();
+  for(const p of DB.purchases){
+    if(from&&p.date<from)continue;
+    let r=out.get(p.product_id);if(!r){r={bySup:new Map(),last:null,min:null,qty:0,total:0};out.set(p.product_id,r)}
+    const uc=unitCost(p),q=Number(p.qty)||0;if(!isFinite(uc))continue;
+    let s=r.bySup.get(p.supplier_id);if(!s){s={sid:p.supplier_id,count:0,qty:0,total:0,min:null,last:null};r.bySup.set(p.supplier_id,s)}
+    s.count++;s.qty+=q;s.total+=uc*q;if(s.min==null||uc<s.min)s.min=uc;if(!s.last||p.date>=s.last.date)s.last={cost:uc,date:p.date};
+    r.qty+=q;r.total+=uc*q;
+    if(!r.last||p.date>=r.last.date)r.last={cost:uc,date:p.date,sid:p.supplier_id};
+    if(!r.min||uc<r.min.cost)r.min={cost:uc,sid:p.supplier_id,date:p.date};
+  }
+  out.forEach(r=>r.bySup.forEach(s=>s.avg=s.qty?s.total/s.qty:null));
+  return out;
+}
+
+/* ========== 画面切替 ========== */
+const TABS=[['dash','粗利'],['sales','販売の取込'],['sets','Bカートのセット'],['purchases','仕入'],['products','商品'],['compare','仕入先の比較'],['settings','設定']];
+let cur=LS.get('arari:tab','dash');if(!TABS.some(t=>t[0]===cur))cur='dash';
+function go(tab){cur=tab;LS.set('arari:tab',cur);render();window.scrollTo(0,0)}
+function render(){
+  const un=getCalc().unmapped.length;
+  $('#tabs').innerHTML=TABS.map(([k,l])=>`<button class="tab ${k===cur?'on':''}" data-tab="${k}" ${k===cur?'aria-current="page"':''}>${l}${k==='sales'&&un?`<span class="dot" title="商品に紐付いていないコード">${un}</span>`:''}</button>`).join('');
+  $('#storeBadge').innerHTML=authUser?`${esc(authUser.email||'')}　<button class="linkbtn" id="logoutBtn" style="color:var(--bar-muted)">ログアウト</button>`:'保存先：'+esc(backend.name);
+  if($('#logoutBtn'))$('#logoutBtn').onclick=logout;
+  $('#banner').innerHTML=backendError?`<div class="banner">${esc(backendError)}</div>`:'';
+  if(chart){chart.destroy();chart=null}
+  const v=$('#view');v.innerHTML='';
+  ({dash:viewDash,sales:viewSales,sets:viewSets,purchases:viewPurchases,products:viewProducts,compare:viewCompare,settings:viewSettings})[cur](v);
+}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)go(b.dataset.tab)});
+document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g){e.preventDefault();go(g.dataset.go)}});
+
+/* ========== 粗利 ========== */
+let dash={preset:'last3',from:'',to:'',group:'prod',sort:'gp',dir:-1,q:''};
+let chart=null;
+function presetRange(p){const y=new Date().getFullYear();
+  if(p==='thisMonth')return monthRange(0);if(p==='lastMonth')return monthRange(-1);
+  if(p==='last3')return[monthRange(-2)[0],monthRange(0)[1]];if(p==='thisYear')return[`${y}-01-01`,`${y}-12-31`];return['',''];}
+function viewDash(el){
+  const [from,to]=dash.preset==='custom'?[dash.from,dash.to]:presetRange(dash.preset);
+  const A=aggregate(from,to);const low=settings.lowMargin/100;
+  const prodRows=[...A.byProd.values()];
+  const lowCount=prodRows.filter(r=>r.key!=='__nocost'&&r.margin!=null&&r.margin<low).length;
+  const notes=[];
+  {const c1=getCalc();if(c1.noRate)notes.push(`<div class="note warn">為替レートが設定にない仕入が${c1.noRate}件（${c1.noRateCur.map(esc).join('、')}）あり、原価に使えていません。<button class="linkbtn" data-go="settings">レートを設定する</button></div>`)}
+  if(A.noneAmount)notes.push(`<div class="note warn">原価がわからない売上 ${yen(A.noneAmount)}（${A.noneCount}件）は粗利に含めていません。下の一覧で、請求書を登録するか原価を手入力してください。</div>`);
+  if(A.unmappedAmount)notes.push(`<div class="note warn">商品に紐付いていない売上 ${yen(A.unmappedAmount)}（${A.unmappedCount}件）があります。<button class="linkbtn" data-go="sales">紐付ける</button></div>`);
+  if(A.estCount)notes.push(`<div class="note est">${settings.costMethod==='moving'?`仕入の記録より先に売れている販売 ${A.estCount}件は、原価を推定しています。仕入先「期首在庫」として手元在庫を登録すると確定します。`:`販売日より前の仕入がない販売 ${A.estCount}件は、その後の最初の仕入単価で計算しています。`}</div>`);
+  if(A.manualCount)notes.push(`<div class="note">手入力の原価で計算した売上 ${yen(A.manualAmount)}（${A.manualCount}件）があります。請求書を登録すると、仕入単価に置き換わります。</div>`);
+  if(A.nocostCount)notes.push(`<div class="note">原価のない売上 ${yen(A.nocost)}（${A.nocostCount}件：手数料・値引きなど）は、原価0円として粗利に含めています。</div>`);
+  if(A.shippingCount)notes.push(`<div class="note">送料として受け取った ${yen(A.shipping)}（${A.shippingCount}件）は、商品の売上・粗利とは別にしています。</div>`);
+  if(lowCount)notes.push(`<div class="note">粗利率が${settings.lowMargin}%を下回る商品が${lowCount}点あります（表で赤く表示）。</div>`);
+  const empty=!DB.sales.length;
+  el.innerHTML=`
+  <section class="period">
+    <div class="seg" role="group" aria-label="期間">${[['thisMonth','今月'],['lastMonth','先月'],['last3','直近3か月'],['thisYear','今年'],['all','全期間']].map(([k,l])=>`<button class="${dash.preset===k?'on':''}" data-preset="${k}">${l}</button>`).join('')}</div>
+    <div class="range"><input type="date" id="dFrom" value="${from}" aria-label="開始日"><span>〜</span><input type="date" id="dTo" value="${to}" aria-label="終了日"></div>
+  </section>
+  ${empty?`<section class="card empty"><h2>まだ販売データがありません</h2><p>販売CSVを取り込み、仕入を登録すると、ここに期間の粗利が出ます。先に動きを見たい場合は、設定からサンプルデータを入れられます。</p><div class="actions left"><button class="btn primary" data-go="sales">販売CSVを取り込む</button><button class="btn" data-go="settings">サンプルデータを入れる</button></div></section>`:''}
+  <section class="eq" aria-label="期間の粗利">
+    <div class="term"><div class="l">売上（税抜）</div><div class="v n">${yen(A.costedSales)}</div></div>
+    <div class="op" aria-hidden="true">−</div>
+    <div class="term"><div class="l">仕入原価</div><div class="v n">${yen(A.cost)}</div></div>
+    <div class="op" aria-hidden="true">=</div>
+    <div class="term gp"><div class="l">粗利<span class="rate">${pct(A.margin)}</span></div><div class="v n ${A.gp<0?'neg':''}">${yen(A.gp)}</div></div>
+  </section>
+  <div class="notes">${notes.join('')}</div>
+  <section class="card"><h2>月ごとの売上と粗利</h2><div class="chartbox"><canvas id="mchart" aria-label="月別の売上と粗利のグラフ"></canvas></div></section>
+  ${(()=>{const miss=[...A.byProd.values()].filter(r=>r.none&&r.key!=='__nocost').sort((a,b)=>b.noneSales-a.noneSales);if(!miss.length)return '';const c0=getCalc();
+    return `<section class="card"><div class="spread"><h2>原価が決まっていない商品（${miss.length}）</h2><button class="btn small" data-go="purchases">請求書を登録する</button></div>
+    <p class="hint">この期間に売れたのに、原価の元になる仕入がない商品です。請求書を登録するのが確実ですが、急ぎの場合は1仕入単位あたりの原価（円・付帯費用込み）を手入力できます。売上の大きい順です。</p>
+    <div class="tablewrap"><table><thead><tr><th>商品</th><th class="n">数量（仕入単位）</th><th class="n">売上</th><th class="n">平均売価</th><th>原価を手入力（円）</th></tr></thead><tbody>
+    ${miss.map(r=>{const p=c0.prodById.get(r.key);return `<tr data-miss="${esc(r.key)}"><td class="name">${esc(prodLabel(p))}</td><td class="n">${num(r.noneQty)}${esc(p&&p.unit||'')}</td><td class="n">${yen(r.noneSales)}</td><td class="n">${yen(r.noneQty?r.noneSales/r.noneQty:null)}</td>
+      <td><div class="row" style="flex-wrap:nowrap"><input type="number" min="0" step="any" class="n stdin" style="width:8rem" aria-label="原価（円）"><button class="btn small" data-savestd>保存</button></div></td></tr>`}).join('')}
+    </tbody></table></div></section>`})()}
+  <section class="card">
+    <div class="spread"><div class="seg" role="group" aria-label="集計の単位"><button class="${dash.group==='prod'?'on':''}" data-group="prod">商品ごと</button><button class="${dash.group==='cust'?'on':''}" data-group="cust">取引先ごと</button></div>
+    <input type="text" id="dq" value="${esc(dash.q)}" placeholder="名前で絞り込む" style="max-width:260px"></div>
+    <div class="tablewrap" id="dtable"></div>
+  </section>`;
+  el.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{dash.preset=b.dataset.preset;render()});
+  const onRange=()=>{dash.preset='custom';dash.from=$('#dFrom').value;dash.to=$('#dTo').value;render()};
+  $('#dFrom').onchange=onRange;$('#dTo').onchange=onRange;
+  el.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>{dash.group=b.dataset.group;render()});
+  $('#dq').oninput=e=>{dash.q=e.target.value;drawDashTable(A)};
+  el.querySelectorAll('tr[data-miss]').forEach(tr=>{const go=async()=>{const v=Number(tr.querySelector('.stdin').value);if(!(v>0)){toast('原価を入れてください','err');return}
+    const p=DB.products.find(x=>x.id===tr.dataset.miss);if(!p)return;await save('products',Object.assign({},p,{std_cost:v}));toast('原価を保存しました');render()};
+    tr.querySelector('[data-savestd]').onclick=go;tr.querySelector('.stdin').onkeydown=e=>{if(e.key==='Enter')go()}});
+  drawDashTable(A);drawChart(A,from,to);
+}
+function drawDashTable(A){
+  const c=getCalc();const low=settings.lowMargin/100;const q=dash.q.trim().toLowerCase();
+  let rows;
+  if(dash.group==='prod')rows=[...A.byProd.values()].map(r=>Object.assign({},r,r.key==='__nocost'?{label:'原価のない売上（手数料・値引きなど）',pid:null}:{label:prodLabel(c.prodById.get(r.key)),pid:r.key}));
+  else rows=[...A.byCust.values()].map(r=>Object.assign({},r,{label:r.key}));
+  if(q)rows=rows.filter(r=>r.label.toLowerCase().includes(q));
+  const k=dash.sort,d=dash.dir;
+  rows.sort((a,b)=>{const va=k==='label'?a.label:(a[k]??-Infinity),vb=k==='label'?b.label:(b[k]??-Infinity);return (va<vb?-1:va>vb?1:0)*d});
+  const th=(key,l,cls='n')=>`<th class="sortable ${cls}" data-sort="${key}" aria-sort="${dash.sort===key?(dash.dir>0?'ascending':'descending'):'none'}">${l}${dash.sort===key?(dash.dir>0?' ▲':' ▼'):''}</th>`;
+  const isP=dash.group==='prod';
+  const head=`<tr>${th('label',isP?'商品':'取引先','')}${th('qty',isP?'数量（仕入単位）':'数量')}${th('sales','売上')}${isP?th('avgSell','平均売価')+th('avgCost','平均原価'):th('cost','原価')}${th('gp','粗利')}${th('margin','粗利率')}<th></th></tr>`;
+  rows.forEach(r=>{r.avgSell=r.qty?r.sales/r.qty:null;const cq=r.qty*(r.costedSales/(r.sales||1));r.avgCost=r.cost&&cq?r.cost/cq:null});
+  const body=rows.slice(0,500).map(r=>`<tr class="${isP&&r.pid?'click':''}" ${isP&&r.pid?`data-pid="${esc(r.pid)}" tabindex="0"`:''}>
+    <td class="name">${esc(r.label)}</td><td class="n">${num(r.qty)}</td><td class="n">${yen(r.sales)}</td>
+    ${isP?`<td class="n">${yen(r.avgSell)}</td><td class="n">${yen(r.avgCost)}</td>`:`<td class="n">${yen(r.cost)}</td>`}
+    <td class="n ${r.gp<0?'neg':''}">${yen(r.gp)}</td><td class="n ${r.pid&&r.margin!=null&&r.margin<low?'low':''}">${r.pid||!isP?pct(r.margin):'—'}</td>
+    <td>${r.none?`<span class="tag warn">原価不明 ${r.none}件</span>`:''}${r.est?` <span class="tag est">推定 ${r.est}件</span>`:''}${r.manual?` <span class="tag buy">手入力原価 ${r.manual}件</span>`:''}</td></tr>`).join('');
+  const t=$('#dtable');
+  t.innerHTML=rows.length?`<table><thead>${head}</thead><tbody>${body}</tbody></table>`:`<p class="hint" style="padding:1rem">この期間の販売はありません。</p>`;
+  t.querySelectorAll('[data-sort]').forEach(h=>h.onclick=()=>{if(dash.sort===h.dataset.sort)dash.dir*=-1;else{dash.sort=h.dataset.sort;dash.dir=h.dataset.sort==='label'?1:-1}drawDashTable(A)});
+  t.querySelectorAll('[data-pid]').forEach(tr=>{tr.onclick=()=>openProduct(tr.dataset.pid);tr.onkeydown=e=>{if(e.key==='Enter')openProduct(tr.dataset.pid)}});
+}
+function drawChart(A,from,to){
+  const cv=$('#mchart');if(!cv)return;
+  if(!window.Chart){cv.parentElement.innerHTML='<p class="hint">グラフのライブラリを読み込めませんでした。</p>';return}
+  const keys=[...A.byMonth.keys()].sort();
+  let months=[];
+  if(keys.length){let s=(from||keys[0]).slice(0,7),e=(to||keys[keys.length-1]).slice(0,7);if(from&&!to)e=keys[keys.length-1]>s?keys[keys.length-1]:s;
+    let [y,m]=s.split('-').map(Number);const [ey,em]=e.split('-').map(Number);
+    while((y<ey||(y===ey&&m<=em))&&months.length<60){months.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++}}}
+  const g=k=>A.byMonth.get(k);
+  chart=new Chart(cv,{data:{labels:months.map(k=>k.replace('-','/')),datasets:[
+    {type:'bar',label:'売上',data:months.map(k=>g(k)?Math.round(g(k).costedSales):0),backgroundColor:cssVar('--buy'),borderRadius:2,order:2},
+    {type:'bar',label:'粗利',data:months.map(k=>g(k)?Math.round(g(k).gp):0),backgroundColor:cssVar('--accent'),borderRadius:2,order:2},
+    {type:'line',label:'粗利率',data:months.map(k=>g(k)&&g(k).margin!=null?+(g(k).margin*100).toFixed(1):null),borderColor:cssVar('--ink'),backgroundColor:cssVar('--ink'),yAxisID:'y2',tension:.25,pointRadius:3,order:1}
+  ]},options:{maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{labels:{color:cssVar('--muted'),boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y2'?`粗利率 ${ctx.parsed.y}%`:`${ctx.dataset.label} ¥${Number(ctx.parsed.y).toLocaleString('ja-JP')}`}}},
+    scales:{x:{ticks:{color:cssVar('--muted')},grid:{display:false}},
+      y:{ticks:{color:cssVar('--muted'),callback:v=>v>=10000||v<=-10000?(v/10000).toLocaleString('ja-JP')+'万':v},grid:{color:cssVar('--line')}},
+      y2:{position:'right',ticks:{color:cssVar('--muted'),callback:v=>v+'%'},grid:{display:false}}}}});
+}
+
+/* ========== 販売の取込 ========== */
+const SALE_FIELDS=[
+  {k:'date',l:'日付',req:true,re:[/^(受注|注文)日時?$/,/(受注|注文|購入|売上|出荷|発送|納品)(日時|日付|日)|^日付$|date/i]},
+  {k:'orderNo',l:'受注番号',re:[/^受注番号$/,/(受注|注文|伝票)\s*(番号|ID|No|コード)|order/i]},
+  {k:'line',l:'受注内の行番号',re:[/受注内連番|明細番号|行番号/]},
+  {k:'customer',l:'取引先（顧客）',re:[/^会社名$/,/会社名|得意先|顧客|取引先|購入者|customer/i]},
+  {k:'setId',l:'BカートセットID',re:[/セット\s*ID|set_?id/i]},
+  {k:'code',l:'品番',re:[/^品番$/,/品番|商品\s*(コード|番号)|SKU|型番/i]},
+  {k:'name',l:'商品名',req:true,re:[/^商品名$/,/商品名|品名|product/i]},
+  {k:'setName',l:'セット名',re:[/^セット名$/]},
+  {k:'kind',l:'明細区分（送料の見分け）',re:[/明細区分/]},
+  {k:'status',l:'対応状況（キャンセル除外）',re:[/対応状況|ステータス/]},
+  {k:'qty',l:'数量',req:true,re:[/^受注数$/,/数量|個数|qty|quantity/i]},
+  {k:'unit',l:'単価',re:[/^単価$/,/単価|販売価格|price/i]},
+  {k:'amount',l:'金額（小計）',re:[/^小計$/,/小計|金額|amount/i]}
+];
+let imp=null;
+async function readCsvFile(file){
+  const buf=await file.arrayBuffer();let text;
+  try{text=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(e){text=new TextDecoder('shift_jis').decode(buf)}
+  text=text.replace(/^\uFEFF/,'');
+  return Papa.parse(text,{skipEmptyLines:'greedy'}).data;
+}
+function guessMapping(headers){
+  const h=headers.map(x=>String(x).trim());const m={};
+  const saved=settings.saleMapping;
+  if(saved){let ok=true;for(const f of SALE_FIELDS){const name=saved[f.k];if(name==null){m[f.k]=-1;continue}const i=h.indexOf(name);if(i<0){ok=false;break}m[f.k]=i}if(ok&&m.date>=0&&m.qty>=0)return m}
+  const used=new Set();
+  for(const f of SALE_FIELDS){let i=-1;for(const re of f.re){i=h.findIndex((x,idx)=>!used.has(idx)&&re.test(x));if(i>=0)break}m[f.k]=i;if(i>=0)used.add(i)}
+  return m;
+}
+function parseSaleRow(row,m,taxDiv){
+  const get=k=>m[k]>=0?row[m[k]]:'';
+  const date=parseDate(get('date'));const qty=parseNum(get('qty'));
+  const code=String(get('code')||'').trim(),name=normName(get('name')),setId=String(get('setId')||'').trim(),setName=normName(get('setName'));
+  const kind=String(get('kind')||'').trim(),line=String(get('line')||'').trim();
+  if(/キャンセル|取消|取り消し/.test(String(get('status')||'')))return{err:'キャンセルの注文'};
+  if(!date)return{err:'日付が読めない'};if(!isFinite(qty)||qty===0)return{err:'数量が0か読めない'};if(!code&&!name&&!setId)return{err:'セットID・品番・商品名がない'};
+  let unit=parseNum(get('unit')),amount=parseNum(get('amount'));
+  if(!isFinite(amount))amount=isFinite(unit)?unit*qty:NaN;
+  if(!isFinite(amount))return{err:'金額が読めない'};
+  amount=amount/taxDiv;
+  return{date,qty,setId,setName,code,name,kind,line,amount,unit:amount/qty,orderNo:String(get('orderNo')||'').trim(),customer:String(get('customer')||'').trim()};
+}
+function viewSales(el){
+  const c=getCalc();
+  const linked=DB.codemap.filter(x=>!x.excluded&&!x.nocost),excluded=DB.codemap.filter(x=>x.excluded||x.nocost);
+  el.innerHTML=`${datalists()}
+  <section class="card">
+    <h2>販売CSVを取り込む</h2>
+    ${imp?importPanel():`<label class="drop" id="drop"><input type="file" id="sfile" accept=".csv,text/csv"><strong>CSVファイルを選ぶ</strong><br><span class="hint">ここにドラッグしても取り込めます。Shift_JIS・UTF-8どちらでも読めます。同じ注文を再度取り込んでも二重にはならず、金額が上書きされます。</span></label>`}
+  </section>
+  <section class="card">
+    <div class="spread"><h2>商品に紐付いていない販売コード（${c.unmapped.length}）</h2>${c.unmapped.some(u=>u.code)?`<button class="btn small" id="bulkCreate">コードがあるものをすべて商品登録</button>`:''}</div>
+    ${c.unmapped.length?`<p class="hint">受注の商品名・セット名が「Bカートのセット」と一致すれば自動で紐付きます。ここに出るのは、商品ページを消した・名前を変えた・その場で作った明細などです。仕入商品を選んで紐付けるか、手数料のように原価がないものは「原価なしで含める」、粗利に関係ないものは「集計から外す」を選びます。入数は1セット売れたときに仕入商品がいくつ減るかです。</p>
+    <div class="tablewrap"><table><thead><tr><th>セットID／品番</th><th>商品名（CSV）</th><th class="n">件数</th><th class="n">売上</th><th>紐付ける商品</th><th class="n">入数</th><th></th></tr></thead><tbody>
+    ${c.unmapped.slice(0,300).map(u=>`<tr data-key="${esc(u.key)}"><td>${u.setId?'セット '+esc(u.setId):esc(u.code||'—')}</td><td>${esc(u.name||'')}${u.setName?`<span class="sub">${esc(u.setName)}</span>`:''}</td><td class="n">${num(u.count)}</td><td class="n">${yen(u.amount)}</td>
+    <td style="min-width:220px"><input list="prodlist" class="linkin" placeholder="商品名かコードで検索" aria-label="紐付ける商品"></td><td><input type="number" class="perin n" value="1" min="0" step="any" style="width:4.5rem" aria-label="入数"></td>
+    <td><div class="row" style="flex-wrap:nowrap"><button class="btn small" data-act="link">紐付ける</button><button class="btn small" data-act="create">商品として登録</button><button class="btn small" data-act="nocost">原価なしで含める</button><button class="btn small" data-act="exclude">集計から外す</button></div></td></tr>`).join('')}
+    </tbody></table></div>`:`<p class="hint">すべての販売が商品に紐付いています。</p>`}
+  </section>
+  <details class="card"><summary>紐付けと除外の一覧（${linked.length+excluded.length}）</summary>
+    ${linked.length+excluded.length?`<div class="tablewrap"><table><thead><tr><th>販売コード／商品名</th><th>扱い</th><th></th></tr></thead><tbody>
+    ${[...linked,...excluded].map(x=>`<tr><td>${x.id.startsWith('b:')?'セット '+esc(x.id.slice(2)):esc(x.id.slice(2).replace('|','／'))}${x.id.startsWith('n:')?' <span class="sub">商品名で紐付け</span>':''}</td><td>${x.nocost?'<span class="tag ok">原価なしで含める</span>':x.excluded?'<span class="tag warn">集計から除外</span>':esc(prodLabel(c.prodById.get(x.product_id)))+((x.per||1)!==1?' × '+num(x.per,2):'')}</td><td><button class="btn small" data-unmap="${esc(x.id)}">${x.excluded||x.nocost?'元に戻す':'紐付けを外す'}</button></td></tr>`).join('')}
+    </tbody></table></div>`:'<p class="hint">まだありません。</p>'}
+  </details>
+  <section class="card"><h2>取込の履歴</h2>
+    ${DB.batches.length?`<div class="tablewrap"><table><thead><tr><th>取込日時</th><th>ファイル</th><th>販売日の範囲</th><th class="n">行数</th><th class="n">現在の行数</th><th></th></tr></thead><tbody>
+    ${[...DB.batches].sort((a,b)=>b.importedAt.localeCompare(a.importedAt)).map(b=>{const n=DB.sales.filter(s=>s.batch===b.id).length;return `<tr><td>${esc(b.importedAt.replace('T',' ').slice(0,16))}</td><td>${esc(b.file)}</td><td>${esc(b.from||'')} 〜 ${esc(b.to||'')}</td><td class="n">${num(b.rows)}</td><td class="n">${num(n)}</td><td><button class="btn small danger" data-delbatch="${esc(b.id)}">この取込の行を削除</button></td></tr>`}).join('')}
+    </tbody></table></div><p class="hint">「現在の行数」は、後の取込で上書きされた行を除いた数です。</p>`:'<p class="hint">まだ取り込んでいません。</p>'}
+  </section>`;
+
+  const drop=$('#drop');
+  if(drop){
+    const handle=async f=>{if(!f)return;try{const data=await readCsvFile(f);if(data.length<2){toast('データ行がありません','err');return}const headers=data[0].map(x=>String(x).trim());imp={file:f.name,headers,rows:data.slice(1),mapping:guessMapping(headers)};render()}catch(e){toast('CSVを読めませんでした：'+e.message,'err')}};
+    $('#sfile').onchange=e=>handle(e.target.files[0]);
+    drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+    drop.ondragleave=()=>drop.classList.remove('over');
+    drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');handle(e.dataTransfer.files[0])};
+  }else bindImportPanel();
+
+  el.querySelectorAll('tr[data-key]').forEach(tr=>{
+    const key=tr.dataset.key;const u=c.unmapped.find(x=>x.key===key);
+    tr.querySelector('[data-act="link"]').onclick=async()=>{const p=findProduct(tr.querySelector('.linkin').value);if(!p){toast('商品が見つかりません。候補から選んでください','err');return}await save('codemap',{id:key,product_id:p.id,per:Number(tr.querySelector('.perin').value)||1});toast('紐付けました');render()};
+    tr.querySelector('[data-act="create"]').onclick=async()=>{const p={id:uid(),code:u.code||'',name:[u.name,u.setName].filter(Boolean).join('／')||u.code||('セット'+u.setId),category:'',unit:'',memo:''};await save('products',p);await save('codemap',{id:key,product_id:p.id,per:Number(tr.querySelector('.perin').value)||1});toast('商品として登録しました');render()};
+    tr.querySelector('[data-act="nocost"]').onclick=async()=>{await save('codemap',{id:key,nocost:true});toast('原価なしの売上として含めます');render()};
+    tr.querySelector('[data-act="exclude"]').onclick=async()=>{await save('codemap',{id:key,excluded:true});toast('集計から外しました');render()};
+  });
+  const bc=$('#bulkCreate');
+  if(bc)bc.onclick=async()=>{
+    const targets=c.unmapped.filter(u=>u.code);
+    if(!await askConfirm(`販売コードがある${targets.length}件を、そのコードと商品名で商品登録します。`,'登録する',false))return;
+    const prods=[],maps=[];
+    targets.forEach(u=>{const p={id:uid(),code:u.code,name:u.name||u.code,category:'',memo:''};prods.push(p);maps.push({id:u.key,product_id:p.id})});
+    await save('products',prods);await save('codemap',maps);toast(`${prods.length}件を商品登録しました`);render();
+  };
+  el.querySelectorAll('[data-unmap]').forEach(b=>b.onclick=async()=>{await removeRows('codemap',b.dataset.unmap);render()});
+  el.querySelectorAll('[data-delbatch]').forEach(b=>b.onclick=async()=>{
+    const ids=DB.sales.filter(s=>s.batch===b.dataset.delbatch).map(s=>s.id);
+    if(!await askConfirm(`この取込で入った販売 ${ids.length}行と履歴を削除します。`))return;
+    await removeRows('sales',ids);await removeRows('batches',b.dataset.delbatch);toast('削除しました');render();
+  });
+}
+function importPanel(){
+  const m=imp.mapping;const taxDiv=settings.salesTaxIncluded?1+settings.taxRate/100:1;
+  const prev=imp.rows.slice(0,8).map(r=>parseSaleRow(r,m,taxDiv));
+  let ok=0,bad=0,ship=0;const badWhy=new Map();imp.rows.forEach(r=>{const p=parseSaleRow(r,m,taxDiv);if(p.err){bad++;badWhy.set(p.err,(badWhy.get(p.err)||0)+1)}else{ok++;if(isShippingKind(p.kind))ship++}});
+  return `<p><strong>${esc(imp.file)}</strong>　${num(imp.rows.length)}行</p>
+  <p class="hint">CSVのどの列を使うか選んでください。Bカートの受注CSVなら自動で選ばれます。商品名とセット名で「Bカートのセット」と照合し、送料の行は商品の粗利と分けて扱います。選んだ内容は次回も使います。</p>
+  <div class="grid g4" style="margin:.7rem 0">${SALE_FIELDS.map(f=>`<label class="field"><span>${f.l}${f.req?'<b class="req">必須</b>':''}</span><select data-map="${f.k}"><option value="-1">（使わない）</option>${imp.headers.map((x,i)=>`<option value="${i}" ${m[f.k]===i?'selected':''}>${esc(x)}</option>`).join('')}</select></label>`).join('')}</div>
+  <div class="row" style="margin:.4rem 0 .8rem"><span class="hint">CSVの金額は</span>
+    <label class="radio" style="margin:0"><input type="radio" name="taxin" value="0" ${!settings.salesTaxIncluded?'checked':''}>税抜</label>
+    <label class="radio" style="margin:0"><input type="radio" name="taxin" value="1" ${settings.salesTaxIncluded?'checked':''}>税込（${settings.taxRate}%で割り戻す）</label></div>
+  <h3>読み取り結果（先頭8行）</h3>
+  <div class="tablewrap" style="margin:.4rem 0"><table><thead><tr><th>日付</th><th>受注番号</th><th>取引先</th><th>セットID</th><th>品番</th><th>商品名／セット名</th><th class="n">数量</th><th class="n">単価（税抜）</th><th class="n">金額（税抜）</th></tr></thead><tbody>
+  ${prev.map(p=>p.err?`<tr><td colspan="9"><span class="tag warn">読み飛ばし：${esc(p.err)}</span></td></tr>`:`<tr><td>${p.date}</td><td>${esc(p.orderNo)}</td><td>${esc(p.customer)}</td><td>${esc(p.setId)}</td><td>${esc(p.code)}</td><td>${isShippingKind(p.kind)?`<span class="tag buy">${esc(p.kind)}</span> `:''}${esc(p.name)}${p.setName?`<span class="sub">${esc(p.setName)}</span>`:''}</td><td class="n">${num(p.qty)}</td><td class="n">${yen(p.unit)}</td><td class="n">${yen(p.amount)}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="stat"><span>取り込める行 <b class="n">${num(ok)}</b></span>${ship?`<span>うち送料の行 <b class="n">${num(ship)}</b></span>`:''}<span>読み飛ばす行 <b class="n">${num(bad)}</b></span></div>${badWhy.size?`<p class="hint">読み飛ばしの内訳：${[...badWhy].map(([k,v])=>`${esc(k)} ${v}行`).join('、')}</p>`:''}
+  <p class="hint">取り込むのは日付・受注番号・取引先名・商品・数量・金額だけで、住所や電話番号などは保存しません。</p>
+  <div class="actions"><button class="btn" id="impCancel">やめる</button><button class="btn primary" id="impGo" ${ok?'':'disabled'}>${num(ok)}行を取り込む</button></div>`;
+}
+function bindImportPanel(){
+  $$('[data-map]').forEach(s=>s.onchange=()=>{imp.mapping[s.dataset.map]=Number(s.value);render()});
+  $$('input[name="taxin"]').forEach(r=>r.onchange=()=>{settings.salesTaxIncluded=r.value==='1';saveSettings();render()});
+  $('#impCancel').onclick=()=>{imp=null;render()};
+  $('#impGo').onclick=doSalesImport;
+}
+async function doSalesImport(){
+  const m=imp.mapping;
+  if(m.date<0||m.qty<0){toast('日付と数量の列を選んでください','err');return}
+  if(m.code<0&&m.name<0&&m.setId<0){toast('商品名・品番・セットIDのどれかの列を選んでください','err');return}
+  if(m.unit<0&&m.amount<0){toast('単価か金額の列を選んでください','err');return}
+  const taxDiv=settings.salesTaxIncluded?1+settings.taxRate/100:1;
+  const batchId=uid(),occ=new Map(),out=[];let skipped=0,minD=null,maxD=null;
+  for(const row of imp.rows){
+    const p=parseSaleRow(row,m,taxDiv);if(p.err){skipped++;continue}
+    const base=p.orderNo?(p.line?`o|${p.orderNo}|L${p.line}`:`o|${p.orderNo}|${p.setId||p.code||p.name}|${p.setName}`):`r|${p.date}|${p.setId}|${p.code}|${p.name}|${p.setName}|${p.qty}|${p.amount.toFixed(2)}|${p.customer}`;
+    const n=(occ.get(base)||0)+1;occ.set(base,n);
+    out.push(Object.assign({id:'s_'+hash(base+'|'+n),batch:batchId},p));
+    if(!minD||p.date<minD)minD=p.date;if(!maxD||p.date>maxD)maxD=p.date;
+  }
+  const existing=new Set(DB.sales.map(s=>s.id));const updated=out.filter(o=>existing.has(o.id)).length;
+  const sm={};SALE_FIELDS.forEach(f=>sm[f.k]=m[f.k]>=0?imp.headers[m[f.k]]:null);settings.saleMapping=sm;saveSettings();
+  const btn=$('#impGo');btn.disabled=true;btn.textContent='取り込み中…';
+  try{
+    await save('batches',{id:batchId,file:imp.file,importedAt:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,19),rows:out.length,from:minD,to:maxD});
+    await save('sales',out);
+    imp=null;toast(`取り込みました：新規 ${out.length-updated}行・上書き ${updated}行・読み飛ばし ${skipped}行`);render();
+  }catch(e){btn.disabled=false;btn.textContent='もう一度取り込む'}
+}
+
+/* ========== Bカートのセット ========== */
+const BC_COLS={pid:'【基本】Bカート商品ID',pname:'【基本】商品名',kanri:'【基本】商品管理番号',pstatus:'【基本】状態',sid:'【セット】BカートセットID',sname:'【セット】セット名',hin:'【セット】品番',jan:'【セット】JANコード',unit:'【セット】単位',price:'【セット】単価',sstatus:'【セット】状態'};
+const VARIANT_RE=/通\s*常\s*便|納\s*期\s*優\s*先\s*便|消費期限|期限|sold\s*out|期間限定|アウトレット|訳あり|在庫限り|[~〜～]\s*\d+\s*箱|以上|会員価格/i;
+const perHint=t=>{const m=String(t).match(/[xｘ×X✕]\s*(\d+)\s*箱/)||String(t).match(/(\d+)\s*vial.*(お得|まとめ|プラン)/i);const n=m?Number(m[1]):0;return n>1?n:null};
+const cleanName=t=>String(t||'').replace(/[\s　]+/g,' ').trim();
+let setf={q:'',only:'all'};
+let bcLast=null;
+
+async function importBcartProducts(file){
+  let data;try{data=await readCsvFile(file)}catch(e){toast('CSVを読めませんでした：'+e.message,'err');return}
+  const h=(data[0]||[]).map(x=>String(x).trim());const col={};
+  Object.entries(BC_COLS).forEach(([k,n])=>col[k]=h.indexOf(n));
+  if(col.pid<0||col.sid<0||col.pname<0){toast('Bカートの商品CSVではないようです（【セット】BカートセットID の列がありません）','err');return}
+  const g=(r,k)=>col[k]>=0?String(r[col[k]]??'').trim():'';
+  const existing=new Map(DB.sets.map(x=>[x.id,x]));
+  const byProd=new Map();let noSet=0;const seen=new Set();
+  for(const r of data.slice(1)){
+    if(r.length<2)continue;
+    const sid=g(r,'sid');if(!sid){if(g(r,'pid'))noSet++;continue}
+    if(seen.has(sid))continue;seen.add(sid);
+    const rec={id:'bc:'+sid,set_id:sid,bcart_product_id:g(r,'pid'),product_name:cleanName(g(r,'pname')),set_name:cleanName(g(r,'sname')),hinban:g(r,'hin'),jan:g(r,'jan'),kanri:g(r,'kanri'),unit:g(r,'unit'),price:parseNum(g(r,'price')),status:g(r,'sstatus'),product_status:g(r,'pstatus')};
+    rec.per_hint=perHint(rec.set_name)||perHint(rec.product_name);
+    if(!byProd.has(rec.bcart_product_id))byProd.set(rec.bcart_product_id,[]);
+    byProd.get(rec.bcart_product_id).push(rec);
+  }
+  const byCode=new Map();DB.products.forEach(p=>{if(p.code&&!byCode.has(p.code))byCode.set(p.code,p)});
+  const usedCodes=new Set(byCode.keys());
+  const newProducts=[],out=[];let added=0,updated=0,reused=0;
+  // 既存（取込前から登録済み）の商品とは品番で結び付ける。取込内では管理番号が別商品で重複していることがあるため、コードでまとめない
+  const makeProduct=(name,hinban,kanri,unit)=>{
+    if(hinban&&byCode.has(hinban)){reused++;return byCode.get(hinban)}
+    const code=[hinban,kanri].find(c=>c&&!usedCodes.has(c))||'';
+    const p={id:uid(),code,name,category:'',unit:unit||'',memo:'Bカートの商品CSVから作成'};
+    if(code)usedCodes.add(code);newProducts.push(p);return p;
+  };
+  for(const sets of byProd.values()){
+    const fresh=[];
+    sets.forEach(x=>{const e=existing.get(x.id);if(e){out.push(Object.assign({},x,{product_id:e.product_id??null,per:e.per??1}));updated++}else fresh.push(x)});
+    if(!fresh.length)continue;
+    const single=sets.length===1;
+    const variants=single?fresh:fresh.filter(x=>VARIANT_RE.test(x.set_name));
+    const normals=single?[]:fresh.filter(x=>!VARIANT_RE.test(x.set_name));
+    if(variants.length){
+      const sib=sets.find(x=>existing.has(x.id)&&(single||VARIANT_RE.test(x.set_name))&&existing.get(x.id).product_id);
+      let p=sib?DB.products.find(q=>q.id===existing.get(sib.id).product_id):null;
+      if(!p){const f=variants[0];p=makeProduct(f.product_name,variants.map(v=>v.hinban).find(Boolean)||'',f.kanri,f.unit)}
+      variants.forEach(x=>{out.push(Object.assign({},x,{product_id:p.id,per:1}));added++});
+    }
+    normals.forEach(x=>{
+      const name=x.set_name&&x.set_name.includes(x.product_name)?x.set_name:x.product_name&&x.set_name&&x.product_name.includes(x.set_name)?x.product_name:`${x.product_name}／${x.set_name}`;
+      const p=makeProduct(name,x.hinban,'',x.unit);out.push(Object.assign({},x,{product_id:p.id,per:1}));added++;
+    });
+  }
+  if(!out.length){toast('取り込めるセットがありませんでした','err');return}
+  await save('products',newProducts);await save('sets',out);
+  bcLast={file:file.name,added,updated,products:newProducts.length,reused,noSet,hints:out.filter(x=>x.per_hint&&(x.per||1)!==x.per_hint).length};
+  toast(`取り込みました：新しいセット ${added}件・更新 ${updated}件`);
+  render();
+}
+
+function viewSets(el){
+  const c=getCalc();const pmap=c.prodById;
+  const shared=new Map();DB.sets.forEach(x=>{if(x.product_id)shared.set(x.product_id,(shared.get(x.product_id)||0)+1)});
+  const salesBySet=new Map();DB.sales.forEach(x=>{if(!x.setId)return;const r=salesBySet.get(String(x.setId))||{n:0,amount:0};r.n++;r.amount+=x.amount;salesBySet.set(String(x.setId),r)});
+  const isHint=x=>x.per_hint&&Number(x.per||1)!==x.per_hint;
+  const isUnlinked=x=>!x.product_id||!pmap.has(x.product_id);
+  let list=DB.sets.slice();
+  if(setf.only==='hint')list=list.filter(isHint);
+  if(setf.only==='unlinked')list=list.filter(isUnlinked);
+  if(setf.only==='shared')list=list.filter(x=>x.product_id&&shared.get(x.product_id)>1);
+  if(setf.only==='visible')list=list.filter(x=>x.status==='表示'&&x.product_status!=='非表示');
+  if(setf.q){const q=setf.q.toLowerCase();list=list.filter(x=>[x.set_id,x.product_name,x.set_name,x.hinban,prodLabel(pmap.get(x.product_id))].join(' ').toLowerCase().includes(q))}
+  list.sort((a,b)=>(Number(a.bcart_product_id)-Number(b.bcart_product_id))||(Number(a.set_id)-Number(b.set_id)));
+  const hintCount=DB.sets.filter(isHint).length,unlinkedCount=DB.sets.filter(isUnlinked).length;
+  let prevPid=null;
+  el.innerHTML=`${datalists()}
+  <section class="card">
+    <h2>Bカートの商品CSVを取り込む</h2>
+    <p class="hint">Bカート管理画面から書き出した商品CSVを取り込むと、販売セットの一覧を作り、原価を計算する「仕入商品」と自動で結び付けます。通常便・納期優先便・期限間近品・価格帯違いのセットは同じ仕入商品にまとめ、それ以外（サイズ違いなど）は別の仕入商品にします。再取込しても、あとで直した紐付けと入数は変わりません。</p>
+    <label class="drop" id="bdrop" style="margin-top:.7rem"><input type="file" id="bfile" accept=".csv,text/csv"><strong>商品CSVを選ぶ</strong><br><span class="hint">ここにドラッグしても取り込めます</span></label>
+    ${bcLast?`<div class="stat"><span>新しいセット <b class="n">${num(bcLast.added)}</b></span><span>更新したセット <b class="n">${num(bcLast.updated)}</b></span><span>作成した仕入商品 <b class="n">${num(bcLast.products)}</b></span>${bcLast.reused?`<span>既存の商品に紐付け <b class="n">${num(bcLast.reused)}</b></span>`:''}</div>${bcLast.noSet?`<p class="hint">セットのない商品 ${bcLast.noSet}件は取り込んでいません（販売できない状態の商品です）。</p>`:''}`:''}
+  </section>
+  ${DB.sets.length?`<section class="card">
+    <div class="spread"><h2>販売セット（${DB.sets.length}）</h2>
+      <div class="row"><div class="seg" role="group" aria-label="絞り込み">${[['all','すべて'],['visible','表示中'],['hint','入数の確認'],['shared','まとめたもの'],['unlinked','未紐付け']].map(([k,l])=>`<button class="${setf.only===k?'on':''}" data-only="${k}">${l}</button>`).join('')}</div>
+      <input type="text" id="setq" value="${esc(setf.q)}" placeholder="セットID・名前・品番で絞り込む" style="max-width:240px"></div></div>
+    <p class="hint">「仕入商品」は原価を計算する単位です。中身が同じセットは同じ仕入商品にしてください（例：期間限定の別商品ページ）。「入数」は1セット売れたときに仕入商品がいくつ減るかで、10箱セットを箱単位で仕入れているなら10です。</p>
+    ${hintCount?`<div class="note est" style="margin:.6rem 0">セット名から、入数が1ではなさそうなセットが${hintCount}件あります。仕入の単位と照らして確認してください。<button class="linkbtn" id="applyHints">候補の入数をすべて反映</button></div>`:''}
+    ${unlinkedCount?`<div class="note warn" style="margin:.6rem 0">仕入商品に紐付いていないセットが${unlinkedCount}件あります。このセットの売上は粗利に入りません。</div>`:''}
+    ${list.length?`<div class="tablewrap"><table><thead><tr><th>Bカート商品</th><th>セットID</th><th>セット名</th><th>品番</th><th class="n">単価</th><th>状態</th><th>仕入商品</th><th class="n">入数</th><th class="n">販売実績</th><th></th></tr></thead><tbody>
+    ${list.slice(0,500).map(x=>{const first=x.bcart_product_id!==prevPid;prevPid=x.bcart_product_id;const sb=salesBySet.get(String(x.set_id));const sh=x.product_id?shared.get(x.product_id)||0:0;
+      return `<tr data-set="${esc(x.id)}"><td class="name">${first?esc(x.product_name):`<span class="sub">〃</span>`}${first&&x.product_status==='非表示'?' <span class="tag warn">商品非表示</span>':''}</td>
+      <td class="n">${esc(x.set_id)}</td><td>${esc(x.set_name)}</td><td>${esc(x.hinban||'')}</td><td class="n">${yen(x.price)}</td>
+      <td>${x.status==='表示'?'表示':`<span class="tag warn">${esc(x.status||'—')}</span>`}</td>
+      <td style="min-width:260px"><input list="prodlist" class="setprod" value="${esc(isUnlinked(x)?'':prodLabel(pmap.get(x.product_id)))}" placeholder="仕入商品を検索" aria-label="仕入商品">${sh>1?`<span class="sub">${sh}セットで共有</span>`:''}</td>
+      <td><input type="number" class="setper n" value="${esc(x.per??1)}" min="0" step="any" style="width:4.8rem" aria-label="入数">${isHint(x)?`<button class="btn small" data-hint="${x.per_hint}" style="margin-top:.2rem">候補 ${x.per_hint}</button>`:''}</td>
+      <td class="n">${sb?`${num(sb.n)}件<span class="sub">${yen(sb.amount)}</span>`:'—'}</td>
+      <td><button class="btn small" data-split title="このセットだけの仕入商品を新しく作ります">別の商品にする</button></td></tr>`}).join('')}
+    </tbody></table></div>${list.length>500?'<p class="hint">500件まで表示しています。絞り込みを使ってください。</p>':''}`:'<p class="hint">条件に合うセットはありません。</p>'}
+  </section>`:''}`;
+
+  const drop=$('#bdrop');
+  $('#bfile').onchange=e=>{if(e.target.files[0])importBcartProducts(e.target.files[0])};
+  drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');if(e.dataTransfer.files[0])importBcartProducts(e.dataTransfer.files[0])};
+  el.querySelectorAll('[data-only]').forEach(b=>b.onclick=()=>{setf.only=b.dataset.only;render()});
+  if($('#setq'))$('#setq').onchange=e=>{setf.q=e.target.value;render()};
+  const getSet=tr=>DB.sets.find(x=>x.id===tr.dataset.set);
+  el.querySelectorAll('tr[data-set]').forEach(tr=>{
+    const pin=tr.querySelector('.setprod'),per=tr.querySelector('.setper');
+    pin.onchange=async()=>{const x=getSet(tr);const v=pin.value.trim();
+      if(!v){await save('sets',Object.assign({},x,{product_id:null}));toast('紐付けを外しました');render();return}
+      const p=findProduct(v);if(!p){toast('仕入商品が見つかりません。候補から選ぶか、「別の商品にする」を使ってください','err');pin.value=prodLabel(pmap.get(x.product_id))||'';return}
+      await save('sets',Object.assign({},x,{product_id:p.id}));toast('紐付けを変更しました');render()};
+    per.onchange=async()=>{const x=getSet(tr);const n=Number(per.value);if(!(n>0)){toast('入数は0より大きい数にしてください','err');per.value=x.per??1;return}
+      await save('sets',Object.assign({},x,{per:n}));toast('入数を変更しました')};
+    const hb=tr.querySelector('[data-hint]');
+    if(hb)hb.onclick=async()=>{const x=getSet(tr);await save('sets',Object.assign({},x,{per:Number(hb.dataset.hint)}));toast('入数を変更しました');render()};
+    tr.querySelector('[data-split]').onclick=async()=>{const x=getSet(tr);
+      const name=x.set_name&&!VARIANT_RE.test(x.set_name)?`${x.product_name}／${x.set_name}`:`${x.product_name}（セット${x.set_id}）`;
+      const code=x.hinban&&!DB.products.some(p=>p.code===x.hinban)?x.hinban:'';
+      const p={id:uid(),code,name,category:'',unit:x.unit||'',memo:'Bカートのセットから作成'};
+      await save('products',p);await save('sets',Object.assign({},x,{product_id:p.id}));toast('新しい仕入商品を作って紐付けました');render()};
+  });
+  const ah=$('#applyHints');
+  if(ah)ah.onclick=async()=>{const t=DB.sets.filter(isHint);
+    if(!await askConfirm(`${t.length}件のセットの入数を、セット名から読み取った数に変えます。仕入を箱単位で登録している場合に正しくなります。`,'反映する',false))return;
+    await save('sets',t.map(x=>Object.assign({},x,{per:x.per_hint})));toast(`${t.length}件の入数を変更しました`);render()};
+}
+
+/* ========== 仕入 ========== */
+const CURRENCIES=['JPY','KRW','USD','EUR','GBP'];
+const newVoucher=()=>({id:null,date:isoLocal(new Date()),supplier:'',no:'',currency:'JPY',fx:'',fxMode:'table',extra:'',extraFx:0,memo:'',doc:'invoice',lines:[{id:null,label:'',qty:'',unit:''},{id:null,label:'',qty:'',unit:''}]});
+let vch=newVoucher();
+let pfilter={sup:'',q:''};
+function viewPurchases(el){
+  const groups=new Map();
+  DB.purchases.forEach(p=>{const k=p.voucher||p.id;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)});
+  let list=[...groups.entries()].map(([vid,rows])=>({vid,rows,date:rows[0].date,sid:rows[0].supplier_id,no:rows[0].no,total:rows.reduce((s,r)=>s+unitCost(r)*r.qty,0)}));
+  if(pfilter.sup)list=list.filter(v=>v.sid===pfilter.sup);
+  if(pfilter.q){const q=pfilter.q.toLowerCase();list=list.filter(v=>v.rows.some(r=>prodLabel(DB.products.find(p=>p.id===r.product_id)).toLowerCase().includes(q))||String(v.no||'').toLowerCase().includes(q))}
+  list.sort((a,b)=>b.date.localeCompare(a.date));
+  const pmap=new Map(DB.products.map(p=>[p.id,p]));
+  el.innerHTML=`${datalists()}
+  <section class="card">
+    <h2>仕入先の請求書を取り込む</h2>
+    <div id="pdfzone" style="margin-bottom:.8rem">${pdfZoneHtml()}</div>
+    ${pimp?pimpPanel():`<details><summary class="hint" style="cursor:pointer">CSVで取り込む</summary><p class="hint">請求書の明細を、下の形式のCSVにして取り込みます。仕入先が違っても、同じ仕入商品を選べば「仕入先の比較」で並べて比べられます。</p>
+    <pre class="sql">仕入日,仕入先,伝票番号,書類,通貨,レート,SKU,品名,区分,数量,単価,税額,仕入商品
+2026-08-27,LPG Clinics Wholesale Ltd,118484,請求書,GBP,,D12-2,Pluryal Densify 2ml,商品,100,55,0,
+2026-08-27,LPG Clinics Wholesale Ltd,118484,請求書,GBP,,SHIPP,Shipping,送料,1,349,0,</pre>
+    <p class="hint">レートと仕入商品は空欄のままでよく、取込後の画面で入れられます。区分が「送料」「付帯費用」の行は付帯費用になります。</p>
+    <label class="drop" id="pdrop" style="margin-top:.6rem"><input type="file" id="pfile" accept=".csv,text/csv"><strong>請求書のCSVを選ぶ</strong><br><span class="hint">ここにドラッグしても取り込めます</span></label></details>`}
+  </section>
+  <section class="card" id="vform">
+    <div class="spread"><h2>${vch.id?'仕入伝票を編集':'仕入伝票を登録'}</h2>${vch.id?'<span class="tag buy">編集中</span>':''}</div>
+    <p class="hint">1回の仕入（1枚の請求書・1回の輸入）を1伝票として登録します。送料・関税などの付帯費用は、明細の金額の割合で各商品の原価に配分します。金額はすべて税抜です。</p>
+    <div class="grid g4" style="margin:.8rem 0">
+      <label class="field"><span>仕入日<b class="req">必須</b></span><input type="date" data-v="date" value="${esc(vch.date)}"></label>
+      <label class="field"><span>仕入先<b class="req">必須</b></span><input list="suplist" data-v="supplier" value="${esc(vch.supplier)}" placeholder="新しい名前はそのまま登録されます"></label>
+      <label class="field"><span>伝票・請求書番号</span><input data-v="no" value="${esc(vch.no)}"></label>
+      <label class="field"><span>書類</span><select data-v="doc"><option value="invoice" ${vch.doc!=='proforma'?'selected':''}>請求書</option><option value="proforma" ${vch.doc==='proforma'?'selected':''}>プロフォーマ（確定前）</option></select></label>
+      <label class="field"><span>通貨</span><select data-v="currency">${CURRENCIES.map(x=>`<option ${vch.currency===x?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label class="field"><span>為替レート</span><select data-v="fxMode" ${vch.currency==='JPY'?'disabled':''}><option value="table" ${vch.fxMode!=='manual'?'selected':''}>設定のレートを使う</option><option value="manual" ${vch.fxMode==='manual'?'selected':''}>この伝票だけ個別に入れる</option></select></label>
+      <label class="field"><span>個別のレート（1${esc(vch.currency)}＝何円）</span><input type="number" step="any" min="0" data-v="fx" value="${vch.currency==='JPY'?1:esc(vch.fx)}" ${vch.currency==='JPY'||vch.fxMode!=='manual'?'disabled':''}><span class="hint" id="vfxinfo"></span></label>
+      <label class="field"><span>付帯費用の合計（円）</span><input type="number" step="any" min="0" data-v="extra" value="${esc(vch.extra)}" placeholder="送料・関税・通関手数料など">${Number(vch.extraFx)>0?`<span class="hint">このほか請求書の送料 ${esc(vch.currency)} ${num(vch.extraFx,2)} を、レートで円に換算して加えます</span>`:''}</label>
+      <label class="field" style="grid-column:span 2"><span>メモ</span><input data-v="memo" value="${esc(vch.memo)}"></label>
+    </div>
+    <div class="tablewrap"><table class="lines"><thead><tr><th>商品</th><th class="n">数量</th><th class="n">単価（${esc(vch.currency)}）</th><th class="n">金額（円）</th><th class="n">付帯費用</th><th class="n">原価単価（円）</th><th></th></tr></thead>
+    <tbody>${vch.lines.map((l,i)=>`<tr data-line="${i}"><td style="min-width:240px"><input list="prodlist" data-l="label" value="${esc(l.label)}" placeholder="商品名かコードで検索" aria-label="商品"></td>
+      <td><input type="number" step="any" class="w-qty n" data-l="qty" value="${esc(l.qty)}" aria-label="数量"></td>
+      <td><input type="number" step="any" class="w-price n" data-l="unit" value="${esc(l.unit)}" aria-label="単価"></td>
+      <td class="n" data-c="amt">—</td><td class="n" data-c="ext">—</td><td class="n" data-c="uc">—</td>
+      <td><button class="btn small" data-delline="${i}" aria-label="この明細を削除">×</button></td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="margin-top:.6rem"><button class="btn small" id="addLine">明細を追加</button><span class="hint">商品が候補に出ないときは、商品タブで先に登録してください。</span></div>
+    <div class="vtotal" id="vtotal"></div>
+    <div class="actions">${vch.id?'<button class="btn danger" id="vDel">この伝票を削除</button><button class="btn" id="vCancel">編集をやめる</button>':'<button class="btn" id="vClear">入力をクリア</button>'}<button class="btn primary" id="vSave">${vch.id?'変更を保存':'登録する'}</button></div>
+  </section>
+  <section class="card">
+    <div class="spread"><h2>仕入の一覧（${list.length}伝票）</h2>
+      <div class="row"><select id="pfSup" style="width:auto"><option value="">すべての仕入先</option>${DB.suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name,'ja')).map(s=>`<option value="${esc(s.id)}" ${pfilter.sup===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+      <input type="text" id="pfQ" value="${esc(pfilter.q)}" placeholder="商品・伝票番号で絞り込む" style="max-width:240px"></div></div>
+    ${list.length?`<div class="tablewrap"><table><thead><tr><th>仕入日</th><th>仕入先</th><th>伝票番号</th><th>明細</th><th class="n">原価合計（円）</th><th></th></tr></thead><tbody>
+    ${list.slice(0,300).map(v=>`<tr><td>${v.date}</td><td>${esc(supName(v.sid))}</td><td>${esc(v.no||'')}${v.rows[0].doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}</td>
+      <td>${v.rows.slice(0,3).map(r=>`${esc((pmap.get(r.product_id)||{}).name||'（削除された商品）')} × ${num(r.qty)}`).join('<br>')}${v.rows.length>3?`<span class="sub">ほか${v.rows.length-3}件</span>`:''}</td>
+      <td class="n">${yen(v.total)}</td><td><button class="btn small" data-edit="${esc(v.vid)}">開く</button></td></tr>`).join('')}
+    </tbody></table></div>${list.length>300?'<p class="hint">新しい順に300伝票まで表示しています。絞り込みを使ってください。</p>':''}`:'<p class="hint">該当する仕入はありません。</p>'}
+  </section>
+`;
+  bindVoucher();
+  $('#pfSup').onchange=e=>{pfilter.sup=e.target.value;render()};
+  $('#pfQ').onchange=e=>{pfilter.q=e.target.value;render()};
+  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
+    const rows=groups.get(b.dataset.edit);const f=rows[0];
+    const fxv=fxOf(f)||0;vch={id:b.dataset.edit,date:f.date,supplier:supName(f.supplier_id),no:f.no||'',currency:f.currency||'JPY',fx:f.fx_mode==='table'?'':(f.fx||1),fxMode:f.fx_mode==='table'?'table':'manual',extra:Math.round(rows.reduce((s,r)=>s+(Number(r.extra)||0),0)*100)/100||'',extraFx:Math.round(rows.reduce((s,r)=>s+(Number(r.extra_fx)||0),0)*100)/100,memo:f.memo||'',doc:f.doc||'invoice',
+      lines:rows.map(r=>({id:r.id,label:prodLabel(pmap.get(r.product_id)),qty:r.qty,unit:r.unit_price}))};
+    render();$('#vform').scrollIntoView({behavior:'auto',block:'start'});
+  });
+  const pd=$('#pdrop');
+  if(pd){const handle=async f=>{if(!f)return;const buf=await f.arrayBuffer();let t;try{t=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(x){t=new TextDecoder('shift_jis').decode(buf)}
+      const r=parsePurchaseCsv(t,f.name);if(r.error){toast(r.error,'err');return}if(!r.vouchers.length){toast('登録できる伝票がありません','err');return}pimp=r;render()};
+    $('#pfile').onchange=e=>handle(e.target.files[0]);pd.ondragover=e=>{e.preventDefault();pd.classList.add('over')};pd.ondragleave=()=>pd.classList.remove('over');pd.ondrop=e=>{e.preventDefault();pd.classList.remove('over');handle(e.dataTransfer.files[0])}}
+  bindPimp();refreshPdfZone();
+}
+function readVoucher(){
+  $$('#vform [data-v]').forEach(i=>{vch[i.dataset.v]=i.value});
+  $$('#vform [data-line]').forEach(tr=>{const l=vch.lines[+tr.dataset.line];tr.querySelectorAll('[data-l]').forEach(i=>l[i.dataset.l]=i.value)});
+}
+function voucherCalc(){
+  const fx=vch.currency==='JPY'?1:vch.fxMode==='manual'?(Number(vch.fx)||0):(rateFor(vch.currency,parseDate(vch.date))||0);const extra=(Number(vch.extra)||0)+(Number(vch.extraFx)||0)*fx;
+  const ls=vch.lines.map(l=>{const q=Number(l.qty)||0,u=Number(l.unit)||0;return{q,amt:q*u*fx}});
+  const total=ls.reduce((s,x)=>s+x.amt,0),tq=ls.reduce((s,x)=>s+x.q,0);
+  ls.forEach(x=>{x.ext=total>0?extra*x.amt/total:(tq?extra*x.q/tq:0);x.uc=x.q?(x.amt+x.ext)/x.q:null});
+  return{ls,total,extra,fx};
+}
+function recalcVoucher(){
+  readVoucher();const r=voucherCalc();{const i=$('#vfxinfo');if(i)i.innerHTML=vch.currency==='JPY'?'':vch.fxMode==='manual'?'':rateInfoHtml(vch.currency,vch.date)}
+  $$('#vform [data-line]').forEach(tr=>{const x=r.ls[+tr.dataset.line];tr.querySelector('[data-c="amt"]').textContent=x.q?yen(x.amt):'—';tr.querySelector('[data-c="ext"]').textContent=x.q&&r.extra?yen(x.ext):'—';tr.querySelector('[data-c="uc"]').textContent=x.uc!=null?yen(x.uc):'—'});
+  $('#vtotal').innerHTML=`<span>商品代 <b class="n">${yen(r.total)}</b></span><span>付帯費用 <b class="n">${yen(r.extra)}</b></span><span>原価合計 <b class="n">${yen(r.total+r.extra)}</b></span>`;
+}
+function bindVoucher(){
+  const f=$('#vform');
+  f.addEventListener('input',e=>{if(e.target.matches('[data-v],[data-l]'))recalcVoucher()});
+  $('[data-v="currency"]',f).onchange=e=>{readVoucher();vch.currency=e.target.value;if(vch.currency==='JPY')vch.fx=1;render()};
+  $('[data-v="fxMode"]',f).onchange=()=>{readVoucher();render()};
+  $('#addLine').onclick=()=>{readVoucher();vch.lines.push({id:null,label:'',qty:'',unit:''});render();const ins=$$('#vform [data-l="label"]');ins[ins.length-1].focus()};
+  f.querySelectorAll('[data-delline]').forEach(b=>b.onclick=()=>{readVoucher();vch.lines.splice(+b.dataset.delline,1);if(!vch.lines.length)vch.lines.push({id:null,label:'',qty:'',unit:''});render()});
+  $('#vSave').onclick=saveVoucher;
+  if($('#vClear'))$('#vClear').onclick=()=>{vch=newVoucher();render()};
+  if($('#vCancel'))$('#vCancel').onclick=()=>{vch=newVoucher();render()};
+  if($('#vDel'))$('#vDel').onclick=async()=>{const ids=DB.purchases.filter(p=>(p.voucher||p.id)===vch.id).map(p=>p.id);if(!await askConfirm(`この伝票（明細${ids.length}件）を削除します。粗利の原価も再計算されます。`))return;await removeRows('purchases',ids);vch=newVoucher();toast('削除しました');render()};
+  recalcVoucher();
+}
+async function saveVoucher(){
+  readVoucher();
+  const errs=[];
+  if(!parseDate(vch.date))errs.push('仕入日を入れてください');
+  const supN=String(vch.supplier||'').trim();if(!supN)errs.push('仕入先を入れてください');
+  const fx=vch.currency==='JPY'?1:vch.fxMode==='manual'?Number(vch.fx):rateFor(vch.currency,parseDate(vch.date));if(!(fx>0))errs.push(vch.fxMode==='manual'?'個別のレートを入れてください':`設定に${vch.currency}の仕入日時点のレートがありません。設定で追加するか、個別に入れてください`);
+  const lines=vch.lines.filter(l=>String(l.label).trim()||String(l.qty).trim()||String(l.unit).trim());
+  if(!lines.length)errs.push('明細を1件以上入れてください');
+  const resolved=lines.map((l,i)=>{const p=findProduct(l.label);const q=Number(l.qty),u=Number(l.unit);
+    if(!p)errs.push(`明細${i+1}：商品「${l.label||'（空）'}」が見つかりません`);
+    if(!(q>0))errs.push(`明細${i+1}：数量を入れてください`);
+    if(!(u>=0)||String(l.unit).trim()==='')errs.push(`明細${i+1}：単価を入れてください`);
+    return{l,p,q,u}});
+  if(errs.length){toast(errs.slice(0,3).join(' / '),'err');return}
+  let sup=DB.suppliers.find(s=>s.name===supN);
+  if(!sup){sup={id:uid(),name:supN,memo:''};await save('suppliers',sup)}
+  const vid=vch.id||uid();const extra=Number(vch.extra)||0,extraFx=Number(vch.extraFx)||0;
+  const total=resolved.reduce((s,x)=>s+x.q*x.u*fx,0),tq=resolved.reduce((s,x)=>s+x.q,0);
+  const rows=resolved.map(x=>Object.assign({},DB.purchases.find(p=>p.id===x.l.id)||{},{id:x.l.id||uid(),voucher:vid,doc:vch.doc||'invoice',date:parseDate(vch.date),supplier_id:sup.id,no:String(vch.no||'').trim(),currency:vch.currency,fx,fx_mode:vch.currency==='JPY'?'manual':(vch.fxMode==='manual'?'manual':'table'),extra_fx:total>0?extraFx*(x.q*x.u*fx)/total:extraFx*x.q/tq,product_id:x.p.id,qty:x.q,unit_price:x.u,extra:total>0?extra*(x.q*x.u*fx)/total:extra*x.q/tq,memo:vch.memo||''}));
+  if(vch.id){const keep=new Set(rows.map(r=>r.id));const old=DB.purchases.filter(p=>(p.voucher||p.id)===vid&&!keep.has(p.id)).map(p=>p.id);await removeRows('purchases',old)}
+  await save('purchases',rows);
+  toast(vch.id?'変更を保存しました':'登録しました');
+  const keepHead={date:vch.date,supplier:vch.supplier,currency:vch.currency,fx:vch.fx,fxMode:vch.fxMode};
+  vch=Object.assign(newVoucher(),vch.id?{}:keepHead);render();
+}
+/* ========== 仕入の請求書明細の取込 ========== */
+const EXTRA_KIND=/送料|付帯|諸経費|手数料|shipping|freight|courier|handling/i;
+const meaningfulSku=sku=>{sku=String(sku||'').trim();return sku&&!/^0+$/.test(sku)?sku:''};
+const supItemId=(supplier,sku,desc)=>'si:'+hash(normName(supplier).toLowerCase()+'|'+(meaningfulSku(sku)||'d:'+normName(desc)).toLowerCase());
+let pimp=null;
+
+function parsePurchaseCsv(text,fileName){
+  const data=Papa.parse(text.replace(/^\uFEFF/,''),{skipEmptyLines:'greedy'}).data;
+  if(data.length<2)return{error:'データ行がありません'};
+  const h=data[0].map(x=>String(x).trim());
+  const ix=(...names)=>{for(const n of names){const i=h.indexOf(n);if(i>=0)return i}return -1};
+  const col={date:ix('仕入日','日付','請求日'),sup:ix('仕入先'),no:ix('伝票番号','請求書番号'),doc:ix('書類'),cur:ix('通貨'),fx:ix('レート','為替レート'),
+    sku:ix('SKU','仕入先品番'),desc:ix('品名','明細'),kind:ix('区分'),qty:ix('数量'),unit:ix('単価'),tax:ix('税額'),prod:ix('仕入商品','商品コード'),per:ix('入数'),extra:ix('付帯費用')};
+  const need=[['仕入日',col.date],['仕入先',col.sup],['数量',col.qty],['単価',col.unit]].filter(x=>x[1]<0).map(x=>x[0]);
+  if(col.sku<0&&col.desc<0&&col.prod<0)need.push('SKU・品名・仕入商品のどれか');
+  if(need.length)return{error:'見出しが足りません：'+need.join('、')};
+  const smap=new Map(DB.supitems.map(x=>[x.id,x]));
+  const vouchers=new Map(),errs=[];
+  data.slice(1).forEach((r,i)=>{
+    const line=i+2;const g=k=>col[k]>=0?String(r[col[k]]??'').trim():'';
+    const date=parseDate(g('date')),supplier=normName(g('sup')),no=g('no');
+    if(!date)return errs.push(`${line}行目：仕入日が読めません`);
+    if(!supplier)return errs.push(`${line}行目：仕入先がありません`);
+    const key=`${supplier}|${no||date}`;
+    let v=vouchers.get(key);
+    if(!v){const cur=(g('cur')||'JPY').toUpperCase();v={key,vid:'inv_'+hash(normName(supplier).toLowerCase()+'|'+(no||date)),date,supplier,no,doc:/プロ|pro.?forma/i.test(g('doc'))?'proforma':'invoice',currency:cur,fx:cur==='JPY'?1:(parseNum(g('fx'))||''),fxMode:parseNum(g('fx'))>0?'manual':'table',lines:[],extraFx:0,extraJpy:0};vouchers.set(key,v)}
+    const qty=parseNum(g('qty')),unit=parseNum(g('unit')),tax=parseNum(g('tax'))||0;
+    const sku=g('sku'),desc=normName(g('desc')),kind=g('kind');
+    if(!isFinite(qty)||!isFinite(unit))return errs.push(`${line}行目：数量か単価が読めません`);
+    const extraJpy=parseNum(g('extra'));if(isFinite(extraJpy))v.extraJpy+=extraJpy;
+    if(EXTRA_KIND.test(kind)||(!kind&&/^shipp|shipping/i.test(sku+' '+desc))){v.extraFx+=qty*unit+tax;return}
+    const si=smap.get(supItemId(supplier,sku,desc));
+    let label='',per=parseNum(g('per'));
+    if(si&&DB.products.some(p=>p.id===si.product_id)){label=prodLabel(DB.products.find(p=>p.id===si.product_id));if(!isFinite(per))per=si.per}
+    else if(g('prod')){const p=findProduct(g('prod'));if(p)label=prodLabel(p);else label=g('prod')}
+    v.lines.push({sku,desc,qty,unit,tax,label,per:isFinite(per)&&per>0?per:1,known:!!si});
+  });
+  const list=[...vouchers.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  list.forEach(v=>v.exists=DB.purchases.some(p=>p.voucher===v.vid));
+  return{file:fileName,vouchers:list,errs};
+}
+function pimpCalc(v){
+  const fx=v.currency==='JPY'?1:v.fxMode==='manual'?(Number(v.fx)||0):(rateFor(v.currency,parseDate(v.date))||0);
+  const ls=v.lines.map(l=>{const q=Number(l.qty)||0,per=Number(l.per)||1;const raw=q*(Number(l.unit)||0)+(Number(l.tax)||0);return{q,per,raw,amt:raw*fx}});
+  const total=ls.reduce((s,x)=>s+x.amt,0);const extra=(Number(v.extraFx)||0)*fx+(Number(v.extraJpy)||0);
+  const exFx=Number(v.extraFx)||0,exJpy=Number(v.extraJpy)||0;const base=ls.reduce((s,x)=>s+x.raw,0);
+  ls.forEach(x=>{const sh=base>0?x.raw/base:0;x.extFx=exFx*sh;x.extJpy=exJpy*sh;x.ext=total>0?extra*x.amt/total:0;x.uc=x.q?(x.amt+x.ext)/(x.q*x.per):null});
+  const foreign=v.lines.reduce((s,l)=>s+(Number(l.qty)||0)*(Number(l.unit)||0)+(Number(l.tax)||0),0)+(Number(v.extraFx)||0);
+  return{fx,ls,total,extra,foreign};
+}
+const pimpTol=v=>v.currency==='JPY'?1:0.05;
+function pimpCheck(v){
+  const c=pimpCalc(v);const out={c,diff:null,ok:true};
+  if(v.invoiceTotal!=null){out.diff=r2(c.foreign-v.invoiceTotal);if(Math.abs(out.diff)>pimpTol(v))out.ok=false}
+  if(v.blockers&&v.blockers.length)out.ok=false;
+  return out;
+}
+function pimpPanel(){
+  if(!pimp)return '';
+  const cnt=pimp.vouchers.length;
+  return `<div id="pimp">
+    <div class="spread"><p style="margin:0"><strong>確認して登録</strong>　${cnt}伝票</p></div>
+    ${pimp.errs.length?`<div class="note warn">読み飛ばした行：<br>${pimp.errs.slice(0,20).map(esc).join('<br>')}</div>`:''}
+    <p class="hint">為替レートは、設定で決めたレートを請求日に合わせて使います。送金時のレートなど、伝票ごとに変えたいときは「個別に入れる」を選んでください。「明細の合計」が「請求書の総額」と一致しない伝票は登録できません。数字を直すとその場で再チェックします。送料の行は付帯費用として、明細の金額の割合で各商品の原価に配分します。仕入先ごとの品目と仕入商品の対応は覚えるので、次回から自動で入ります。</p>
+    ${pimp.vouchers.map((v,vi)=>{const k=pimpCheck(v),c=k.c;return `<div class="cmp" data-pv="${vi}">
+      <div class="cmp-head"><h3>${esc(v.supplier||'（仕入先不明）')}　${esc(v.no||'')}${v.doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}</h3><span>${v.file?`<span class="sub">${esc(v.file)}</span>`:''}${v.exists?' <span class="tag est">登録済み・上書きします</span>':''}</span></div>
+      ${(v.blockers||[]).map(m=>`<div class="note warn">${esc(m)}</div>`).join('')}
+      ${(v.msgs||[]).map(m=>`<div class="note est">${esc(m)}</div>`).join('')}
+      ${(v.notes||[]).length?`<div class="note">${v.notes.map(esc).join('<br>')}</div>`:''}
+      <div class="grid g4" style="margin:.6rem 0">
+        <label class="field"><span>仕入先</span><input list="suplist" data-pf="supplier" value="${esc(v.supplier)}"></label>
+        <label class="field"><span>請求書番号</span><input data-pf="no" value="${esc(v.no)}"></label>
+        <label class="field"><span>請求日</span><input type="date" data-pf="date" value="${esc(v.date)}"></label>
+        <label class="field"><span>書類</span><select data-pf="doc"><option value="invoice" ${v.doc!=='proforma'?'selected':''}>請求書</option><option value="proforma" ${v.doc==='proforma'?'selected':''}>プロフォーマ（確定前）</option></select></label>
+        <label class="field"><span>為替レート</span><select data-pf="fxMode" ${v.currency==='JPY'?'disabled':''}><option value="table" ${v.fxMode!=='manual'?'selected':''}>設定のレートを使う</option><option value="manual" ${v.fxMode==='manual'?'selected':''}>この伝票だけ個別に入れる</option></select><span class="hint" data-ck="fx">${v.currency==='JPY'||v.fxMode==='manual'?'':rateInfoHtml(v.currency,v.date)}</span></label>
+        <label class="field"><span>個別のレート（1${esc(v.currency)}＝何円）</span><input type="number" step="any" min="0" data-pf="fx" value="${v.currency==='JPY'?1:esc(v.fx)}" ${v.currency==='JPY'||v.fxMode!=='manual'?'disabled':''}></label>
+        <label class="field"><span>送料・付帯費用（${esc(v.currency)}）</span><input type="number" step="any" data-pf="extraFx" value="${esc(v.extraFx||0)}"></label>
+        <div class="field"><span>明細の合計（${esc(v.currency)}）</span><strong class="n" data-ck="sum" style="text-align:left;font-size:1.05rem;color:var(--ink)">${num(c.foreign,2)}</strong></div>
+        <div class="field"><span>請求書の総額（${esc(v.currency)}）</span><strong class="n" data-ck="st" style="text-align:left;font-size:1.05rem">${v.invoiceTotal!=null?`${num(v.invoiceTotal,2)} ${Math.abs(k.diff)<=pimpTol(v)?'<span class="tag ok">一致</span>':`<span class="tag warn">差 ${num(k.diff,2)}</span>`}`:'<span class="hint">CSVのため照合なし</span>'}</strong></div>
+      </div>
+      <div class="plines">
+      ${v.lines.map((l,li)=>`<div class="pline" data-pl="${li}">
+        <div class="pl-head">${l.sku?`<span class="pl-sku">${esc(l.sku)}</span>`:''}<span>${esc(l.desc)}</span></div>
+        <div class="pl-grid">
+          <label class="field pl-prod"><span>仕入商品${l.known?'　<span class="tag ok">前回の対応</span>':l.aiSuggest?'　<span class="tag est">候補・確認してください</span>':'　<span class="tag warn">選んでください</span>'}</span><input list="prodlist" data-plf="label" value="${esc(l.label)}" placeholder="商品名かコードで検索"></label>
+          <label class="field"><span>数量</span><input type="number" step="any" class="n" data-plf="qty" value="${esc(l.qty)}"></label>
+          <label class="field"><span>単価（${esc(v.currency)}）</span><input type="number" step="any" class="n" data-plf="unit" value="${esc(l.unit)}"></label>
+          <label class="field"><span>税額（${esc(v.currency)}）</span><input type="number" step="any" class="n" data-plf="tax" value="${esc(l.tax||0)}"></label>
+          <label class="field"><span>入数</span><input type="number" step="any" min="0" class="n" data-plf="per" value="${esc(l.per)}"></label>
+          <div class="field"><span>原価単価（円）</span><strong class="n pl-uc" data-pc="uc">${c.ls[li].uc!=null&&c.fx?yen(c.ls[li].uc):'—'}</strong></div>
+        </div>
+      </div>`).join('')}
+      </div>
+      <div class="actions" style="margin-top:.5rem"><button class="btn small" data-pdrop="${vi}">この伝票を取り込まない</button></div></div>`}).join('')}
+    <p class="hint">入数は、請求書の1単位が仕入商品のいくつ分かです（例：請求書が5本入り1箱、仕入商品が1本単位なら5）。税額は請求書に載っている外国の付加価値税などで、原価に含めます。</p>
+    <div class="actions"><button class="btn" id="pimpCancel">すべてやめる</button><button class="btn primary" id="pimpSave">${cnt}伝票を登録する</button></div>
+  </div>`;
+}
+function readPimp(){
+  $$('#pimp [data-pv]').forEach(box=>{const v=pimp.vouchers[+box.dataset.pv];
+    box.querySelectorAll('[data-pf]').forEach(i=>{if(i.disabled)return;v[i.dataset.pf]=i.dataset.pf==='extraFx'?(Number(i.value)||0):i.dataset.pf==='supplier'?normName(i.value):i.value.trim?i.value.trim():i.value});
+    box.querySelectorAll('[data-pl]').forEach(tr=>{const l=v.lines[+tr.dataset.pl];tr.querySelectorAll('[data-plf]').forEach(i=>l[i.dataset.plf]=i.dataset.plf==='label'?i.value:(i.value===''?'':Number(i.value)))});
+  });
+}
+function bindPimp(){
+  const box=$('#pimp');if(!box)return;
+  const onPimp=()=>{readPimp();$$('#pimp [data-pv]').forEach(b=>{const v=pimp.vouchers[+b.dataset.pv];const k=pimpCheck(v),c=k.c;
+    b.querySelectorAll('[data-pl]').forEach(tr=>{const x=c.ls[+tr.dataset.pl];tr.querySelector('[data-pc="uc"]').textContent=x.uc!=null&&c.fx?yen(x.uc):'—'});
+    b.querySelector('[data-ck="sum"]').textContent=num(c.foreign,2);
+    {const fi=b.querySelector('[data-ck="fx"]'),fin=b.querySelector('[data-pf="fx"]');if(fin&&v.currency!=='JPY')fin.disabled=v.fxMode!=='manual';if(fi)fi.innerHTML=v.currency==='JPY'||v.fxMode==='manual'?'':rateInfoHtml(v.currency,v.date)}
+    if(v.invoiceTotal!=null)b.querySelector('[data-ck="st"]').innerHTML=`${num(v.invoiceTotal,2)} ${Math.abs(k.diff)<=pimpTol(v)?'<span class="tag ok">一致</span>':`<span class="tag warn">差 ${num(k.diff,2)}</span>`}`;
+  })};
+  box.addEventListener('input',onPimp);box.addEventListener('change',onPimp);
+  box.querySelectorAll('[data-pdrop]').forEach(b=>b.onclick=()=>{readPimp();pimp.vouchers.splice(+b.dataset.pdrop,1);if(!pimp.vouchers.length)pimp=null;render()});
+  $('#pimpCancel').onclick=()=>{pimp=null;pdfQueue=[];render()};
+  $('#pimpSave').onclick=savePimp;
+}
+async function savePimp(){
+  readPimp();const errs=[];
+  pimp.vouchers.forEach(v=>{
+    const tag=`${v.supplier||'仕入先不明'} ${v.no||v.date}`;
+    const k=pimpCheck(v);
+    if(v.blockers&&v.blockers.length)errs.push(`${tag}：${v.blockers[0]}（取り込まないか、CSVで登録してください）`);
+    if(v.invoiceTotal!=null&&Math.abs(k.diff)>pimpTol(v))errs.push(`${tag}：明細の合計が請求書の総額と ${num(k.diff,2)} ずれています`);
+    if(!v.supplier)errs.push(`${tag}：仕入先を入れてください`);
+    if(!parseDate(v.date))errs.push(`${tag}：請求日を入れてください`);
+    if(v.currency!=='JPY'&&!(pimpCalc(v).fx>0))errs.push(v.fxMode==='manual'?`${tag}：個別のレートを入れてください`:`${tag}：設定に${v.currency}の請求日時点のレートがありません`);
+    if(!CURRENCIES.includes(v.currency))errs.push(`${tag}：通貨「${v.currency}」には対応していません`);
+    if(!v.lines.length)errs.push(`${tag}：商品の明細がありません`);
+    v.lines.forEach(l=>{l.p=findProduct(l.label);if(!l.p)errs.push(`${tag}：「${l.desc||l.sku}」の仕入商品を選んでください`);if(!(Number(l.per)>0))errs.push(`${tag}：「${l.desc||l.sku}」の入数を入れてください`);if(!(Number(l.qty)>0))errs.push(`${tag}：「${l.desc||l.sku}」の数量を入れてください`)});
+    v.date=parseDate(v.date)||v.date;
+    v.vid='inv_'+hash(normName(v.supplier).toLowerCase()+'|'+(v.no||v.date));
+    v.exists=DB.purchases.some(p=>p.voucher===v.vid);
+  });
+  if(errs.length){toast(errs.slice(0,3).join(' / '),'err');return}
+  const dup=new Set();for(const v of pimp.vouchers){if(dup.has(v.vid)){toast(`${v.supplier} ${v.no} が2回含まれています`,'err');return}dup.add(v.vid)}
+  const over=pimp.vouchers.filter(v=>v.exists);
+  if(over.length&&!await askConfirm(`${over.map(v=>`${v.supplier} ${v.no||v.date}`).join('、')} はすでに登録されています。今回の内容で置き換えます。`,'置き換える',false))return;
+  const newSups=[],rows=[],items=[],removeIds=[];
+  for(const v of pimp.vouchers){
+    let sup=DB.suppliers.find(s=>normName(s.name).toLowerCase()===v.supplier.toLowerCase())||newSups.find(s=>s.name===v.supplier);
+    if(!sup){sup={id:uid(),name:v.supplier,memo:''};newSups.push(sup)}
+    const c=pimpCalc(v);
+    DB.purchases.filter(p=>p.voucher===v.vid).forEach(p=>removeIds.push(p.id));
+    v.lines.forEach((l,li)=>{const x=c.ls[li];const q=Number(l.qty),per=Number(l.per)||1;
+      rows.push({id:v.vid+'_'+li,voucher:v.vid,date:v.date,supplier_id:sup.id,no:v.no,doc:v.doc,currency:v.currency,fx:c.fx,fx_mode:v.currency==='JPY'?'manual':(v.fxMode==='manual'?'manual':'table'),product_id:l.p.id,qty:q*per,unit_price:(q*(Number(l.unit)||0)+(Number(l.tax)||0))/(q*per),extra:x.extJpy,extra_fx:x.extFx,sku:l.sku,desc:l.desc,memo:v.file?'PDF：'+v.file:''});
+      items.push({id:supItemId(v.supplier,l.sku,l.desc),supplier:v.supplier,sku:meaningfulSku(l.sku),desc:l.desc,product_id:l.p.id,per});
+    });
+  }
+  saveSettings();
+  await save('suppliers',newSups);
+  await removeRows('purchases',removeIds.filter(id=>!rows.some(r=>r.id===id)));
+  await save('purchases',rows);await save('supitems',items);
+  const n=pimp.vouchers.length;pimp=null;pdfQueue=[];toast(`${n}伝票を登録しました`);render();
+}
+
+/* ========== 請求書PDFの読み取り ========== */
+let aiSample=null,aiState='checking',aiImages=null,aiMode=null,pdfQueue=[];
+(async()=>{
+  try{
+    const use=window.claude&&window.claude.use;
+    aiSample=use?await window.claude.use('sample'):null;
+    if(aiSample){const lim=await aiSample.limits().catch(()=>null);aiImages=lim&&lim.images?lim.images:null}
+  }catch(e){aiSample=null}
+  aiMode=aiSample?'claude':(SERVER_MODE&&APP_CONFIG.pdfFunction?'function':null);
+  aiState=aiMode?'ready':'unavailable';
+  refreshPdfZone();
+})();
+function pdfZoneHtml(){
+  if(aiState==='checking')return `<p class="hint">PDF読み取りの準備をしています…</p>`;
+  if(aiState==='unavailable')return `<p class="hint">PDFの読み取りは、claude.aiで開いたとき、または社内サーバー（Supabase）の設定があるときに使えます。ここでは下のCSV取込を使ってください。</p>`;
+  if(!window.pdfjsLib)return `<p class="hint">PDFを開くライブラリを読み込めませんでした。ページを再読み込みしてください。</p>`;
+  return `<label class="drop" id="pdfdrop"><input type="file" id="pdffile" accept="application/pdf,.pdf" multiple><strong>請求書のPDFを選ぶ</strong><br><span class="hint">複数まとめて選べます。ここにドラッグしても読み取れます。${aiMode==='function'?'読み取りにはAnthropic APIの利用料がかかります。':'読み取りには、あなたのClaudeの利用枠を使います。'}</span></label>
+  <div id="pdfprog" aria-live="polite">${pdfQueue.map(q=>`<div class="note ${q.state==='error'?'warn':q.state==='done'?'':'est'}">${esc(q.name)}：${esc(q.msg)}</div>`).join('')}</div>`;
+}
+function refreshPdfZone(){
+  const z=$('#pdfzone');if(!z)return;
+  z.innerHTML=pdfZoneHtml();
+  const d=$('#pdfdrop');if(!d)return;
+  $('#pdffile').onchange=e=>readPdfs([...e.target.files]);
+  d.ondragover=e=>{e.preventDefault();d.classList.add('over')};
+  d.ondragleave=()=>d.classList.remove('over');
+  d.ondrop=e=>{e.preventDefault();d.classList.remove('over');readPdfs([...e.dataTransfer.files].filter(f=>/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name)))};
+}
+function setPdfState(q,state,msg){q.state=state;q.msg=msg;refreshPdfZone()}
+
+async function pdfToTextAndImages(file){
+  const maxImgOverride=aiMode==='function'?0:null;
+  if(window.pdfjsLib&&!pdfjsLib.GlobalWorkerOptions.workerSrc)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const out=[],images=[];const maxImg=maxImgOverride===0?0:(aiImages?Math.min(aiImages.maxCount||0,3):0);
+  for(let n=1;n<=Math.min(doc.numPages,6);n++){
+    const pg=await doc.getPage(n);const tc=await pg.getTextContent();const rows=[];
+    tc.items.forEach(it=>{if(!it.str||!it.str.trim())return;const y=it.transform[5],x=it.transform[4];let r=rows.find(r=>Math.abs(r.y-y)<3);if(!r){r={y,items:[]};rows.push(r)}r.items.push({x,s:it.str})});
+    rows.sort((a,b)=>b.y-a.y);out.push(`[${n}ページ]`);rows.forEach(r=>out.push(r.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join('\t')));
+    if(n<=maxImg){try{const vp=pg.getViewport({scale:1.6});const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;const blob=await new Promise(r=>cv.toBlob(r,'image/png'));if(blob)images.push(blob)}catch(e){}}
+  }
+  return{text:out.join('\n').slice(0,20000),images,pages:doc.numPages};
+}
+function parseJsonLoose(t){
+  t=String(t||'').trim();try{return JSON.parse(t)}catch(e){}
+  const m=t.match(/```(?:json)?\s*([\s\S]*?)```/);if(m){try{return JSON.parse(m[1])}catch(e){}}
+  const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a){try{return JSON.parse(t.slice(a,b+1))}catch(e){}}
+  throw{code:'invalid_json',message:'読み取り結果をJSONとして読めませんでした'};
+}
+async function callInvoiceFunction(prompt,file){
+  if(file.size>10*1024*1024)throw{code:'too_large'};
+  const buf=new Uint8Array(await file.arrayBuffer());let bin='';for(let i=0;i<buf.length;i+=0x8000)bin+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000));
+  const{data}=await RemoteBackend.client.auth.getSession();const token=data&&data.session&&data.session.access_token;
+  if(!token)throw{code:'login_required'};
+  let r;
+  try{r=await fetch(`${APP_CONFIG.supabaseUrl.replace(/\/$/,'')}/functions/v1/${APP_CONFIG.pdfFunction}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,apikey:APP_CONFIG.supabaseAnonKey},body:JSON.stringify({prompt,pdf:btoa(bin)})})}
+  catch(e){throw{code:'network',message:e.message}}
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw{code:d.error||'upstream_error',message:d.detail||('HTTP '+r.status)};
+  return parseJsonLoose(d.text);
+}
+function buildInvoicePrompt(text,withImages){
+  const sups=DB.suppliers.map(s=>s.name).filter(n=>n!=='期首在庫');
+  let prods=DB.products.map((p,i)=>`${i+1}: ${prodLabel(p)}`);
+  const head=`あなたは医療機器・美容医療製品の輸入商社（LIAS株式会社）の経理担当です。仕入先から届いた請求書を読み取り、JSONだけを返してください。今日は${isoLocal(new Date())}です。
+${withImages==='pdf'?'請求書のPDFそのものを添付しています。下に付けた抽出テキストは補助として使い、表の読み取りはPDFを優先してください':'以下は請求書PDFから抽出したテキストです'+(withImages?'（同じ請求書のページ画像も添付しています。表の読み取りは画像も見て確認してください）':'')}。
+
+ルール：
+- 数値は請求書に書かれている通りに入れ、計算や推測で埋めない。読めない値は null。
+- lines には請求書の明細を上から順にすべて入れる。商品は kind "item"、送料・運賃・配送料・手数料は "shipping"、値引きは "discount"（amountはマイナス）。
+- amount はその行の金額（値引き後・税抜）。discount_pct は行の値引き率（なければ null）。
+- tax_rate はその行の税率（%の数値。"No VAT"や免税は 0、書かれていなければ null）。tax はその行の税額が明細に書かれている場合だけ入れ、なければ null。
+- subtotal（税抜合計）、tax_total（税額合計）、total（請求総額）は請求書の表記どおり。
+- doc_type：正式な請求書は "invoice"、プロフォーマ・見積・注文確認は "proforma"。
+- supplier：請求書の発行元の会社名（請求先・宛先ではない）。「既存の仕入先」に同じ会社があれば、その表記をそのまま使う。
+- invoice_no：請求書番号。date：請求書の発行日を YYYY-MM-DD。currency：通貨コード（GBP、EUR、USD、KRW、JPY）。
+- product_no：kind が item の行について、「仕入商品一覧」の中から同じ商品の番号を入れる。英語名とカタカナ名の違い（例：Pluryal Densify と プルリアル デンシファイ、SUNEKOS と スネコス）は同じ商品として扱ってよい。容量・濃度・種類が明らかに違うものは選ばない。該当がなければ null。
+- notes：次のどれかに当てはまる場合だけ、日本語で1項目1文で書く。当てはまらなければ空配列。
+  ・正式な請求書ではない（プロフォーマ、見積など）
+  ・一部の行だけに税（VATなど）がかかっている
+  ・送料や運賃が含まれていない（EXWなど）、または別に請求されると書かれている
+  ・値引き、返金、前払い済みの控除がある
+  ・明細の数字どうしが合わない
+  次のことは書かない：請求先の名義（LIAS株式会社、MEDIXOR、KOTA SAKAGUCHI、坂口孝太はすべて自社）、日付が新しいこと、全行が免税・非課税であること、送料が明細の1行として載っていること。
+
+形式：
+{"supplier":"","invoice_no":"","date":"YYYY-MM-DD","doc_type":"invoice","currency":"GBP","lines":[{"sku":"","description":"","kind":"item","qty":0,"unit_price":0,"discount_pct":null,"amount":0,"tax_rate":null,"tax":null,"product_no":null}],"subtotal":0,"tax_total":0,"total":0,"notes":[]}
+
+既存の仕入先：
+${sups.join('\n')||'（なし）'}
+`;
+  const tail=`
+請求書のテキスト：
+${text}`;
+  const enc=new TextEncoder();
+  let list=prods.join('\n');
+  while(enc.encode(head+'\n仕入商品一覧：\n'+list+tail).length>60000&&prods.length){prods=prods.slice(0,Math.floor(prods.length*0.8));list=prods.join('\n')}
+  return head+'\n仕入商品一覧：\n'+(list||'（なし）')+tail;
+}
+const r2=n=>Math.round(n*100)/100;
+function invoiceToVoucher(j,fileName){
+  const msgs=[],blockers=[];
+  const cur=String(j.currency||'').toUpperCase();
+  if(!CURRENCIES.includes(cur))blockers.push(`通貨「${j.currency||'不明'}」には対応していません`);
+  const date=parseDate(j.date);if(!date)blockers.push('請求書の日付が読めませんでした');
+  let supplier=normName(j.supplier);
+  if(!supplier)blockers.push('仕入先名が読めませんでした');
+  const known=DB.suppliers.find(s=>normName(s.name).toLowerCase()===supplier.toLowerCase());if(known)supplier=known.name;
+  const lines=Array.isArray(j.lines)?j.lines:[];
+  const num2=v=>v==null||v===''?null:Number(v);
+  // 行の検算
+  lines.forEach((l,i)=>{
+    const q=num2(l.qty),u=num2(l.unit_price),a=num2(l.amount),d=num2(l.discount_pct)||0;
+    if(a==null||!isFinite(a)){blockers.push(`${i+1}行目「${l.description||''}」の金額が読めませんでした`);return}
+    if(q!=null&&u!=null&&isFinite(q)&&isFinite(u)&&Math.abs(q*u*(1-d/100)-a)>0.05)msgs.push(`${i+1}行目「${l.description||''}」：数量×単価（${num(q,2)}×${num(u,2)}）が金額 ${num(a,2)} と合いません`);
+  });
+  const sumAmount=r2(lines.reduce((s,l)=>s+(Number(l.amount)||0),0));
+  if(j.subtotal!=null&&Math.abs(sumAmount-Number(j.subtotal))>0.05)blockers.push(`明細の合計 ${num(sumAmount,2)} が小計 ${num(j.subtotal,2)} と合いません`);
+  // 税額を行に配分
+  const taxTotal=Number(j.tax_total)||0;
+  const items=lines.filter(l=>l.kind!=='shipping');
+  let taxes=lines.map(l=>l.tax!=null&&isFinite(Number(l.tax))?Number(l.tax):(Number(l.tax_rate)>0?r2((Number(l.amount)||0)*Number(l.tax_rate)/100):0));
+  const taxSum=r2(taxes.reduce((s,t)=>s+t,0));
+  if(taxTotal&&Math.abs(taxSum-taxTotal)>0.05){
+    if(taxSum>0&&Math.abs(taxSum-taxTotal)<=Math.max(1,taxTotal*0.01)){const k=taxes.findIndex(t=>t>0);taxes[k]=r2(taxes[k]+taxTotal-taxSum)}
+    else{const base=items.reduce((s,l)=>s+(Number(l.amount)||0),0);taxes=lines.map(l=>l.kind!=='shipping'&&base?r2(taxTotal*(Number(l.amount)||0)/base):0);msgs.push('税額がどの行にかかるか分からないため、商品の金額の割合で配分しました')}
+  }else if(!taxTotal&&taxSum>0){msgs.push('明細に税率がありますが、請求書の税額合計は0です。税額は含めていません');taxes=taxes.map(()=>0)}
+  const total=Number(j.total);
+  if(!isFinite(total))blockers.push('請求総額が読めませんでした');
+  const v={key:'pdf|'+fileName,vid:'inv_'+hash(normName(supplier).toLowerCase()+'|'+(String(j.invoice_no||'').trim()||date)),date:date||'',supplier,no:String(j.invoice_no||'').trim(),
+    doc:j.doc_type==='proforma'?'proforma':'invoice',currency:cur||'JPY',fx:cur==='JPY'?1:'',fxMode:'table',lines:[],extraFx:0,extraJpy:0,
+    invoiceTotal:isFinite(total)?total:null,file:fileName,ai:true,notes:(Array.isArray(j.notes)?j.notes:[]).map(String),msgs,blockers};
+  const smap=new Map(DB.supitems.map(x=>[x.id,x]));
+  lines.forEach((l,i)=>{
+    const amt=Number(l.amount)||0,tax=taxes[i]||0;
+    if(l.kind==='shipping'){v.extraFx=r2(v.extraFx+amt+tax);return}
+    const qty=Number(l.qty)||1;
+    const sku=String(l.sku||'').trim(),desc=normName(l.description);
+    const si=smap.get(supItemId(supplier,sku,desc));
+    let label='',per=1,known=false,aiSuggest=false;
+    if(si&&DB.products.some(p=>p.id===si.product_id)){label=prodLabel(DB.products.find(p=>p.id===si.product_id));per=si.per||1;known=true}
+    else if(Number(l.product_no)>0&&DB.products[Number(l.product_no)-1]){label=prodLabel(DB.products[Number(l.product_no)-1]);aiSuggest=true}
+    else if(l.product){const p=findProduct(l.product);if(p){label=prodLabel(p);aiSuggest=true}}
+    v.lines.push({sku,desc,qty,unit:r2(amt/qty*10000)/10000,tax,label,per,known,aiSuggest});
+  });
+  if(!v.lines.length)blockers.push('商品の明細が見つかりませんでした');
+  v.exists=DB.purchases.some(p=>p.voucher===v.vid);
+  return v;
+}
+async function readPdfs(files){
+  if(!files.length)return;
+  if(aiState!=='ready'){toast('PDFの読み取りはここでは使えません','err');return}
+  for(const f of files){
+    const q={name:f.name,state:'run',msg:'PDFを開いています'};pdfQueue.push(q);refreshPdfZone();
+    try{
+      const {text,images}=await pdfToTextAndImages(f);
+      if(aiMode==='claude'&&text.replace(/\[\d+ページ\]/g,'').trim().length<30&&!images.length){setPdfState(q,'error','文字を読み取れないPDFです（スキャン画像の可能性があります）');continue}
+      setPdfState(q,'run','内容を読み取っています（30秒〜1分ほど）');
+      let j;
+      if(aiMode==='function'){j=await callInvoiceFunction(buildInvoicePrompt(text,'pdf'),f)}
+      else{const opts={modelTier:'default'};if(images.length)opts.images=images;j=await aiSample.json(buildInvoicePrompt(text,images.length>0),opts)}
+      const v=invoiceToVoucher(j||{},f.name);
+      if(!pimp)pimp={file:'請求書PDF',vouchers:[],errs:[]};
+      pimp.vouchers=pimp.vouchers.filter(x=>x.vid!==v.vid);pimp.vouchers.push(v);
+      setPdfState(q,'done',v.blockers.length?'読み取りました。確認が必要な点があります':'読み取りました。下で確認してください');
+    }catch(e){
+      const code=e&&e.code;
+      const msg=code==='login_required'?'ログインし直してください':code==='no_api_key'?'サーバーにAnthropic APIキーが設定されていません':code==='too_large'?'PDFが大きすぎます（10MBまで）':code==='network'?'サーバーに接続できませんでした':code==='not_granted'||code==='sampling_disabled'?'Claudeの利用が許可されていないため読み取れません':code==='rate_limited'?'利用が混み合っています。少し時間をおいてからもう一度選んでください':code==='invalid_json'?'読み取り結果の形式が崩れました。もう一度選んでください':code==='image_rejected'?'ページ画像を送れませんでした':(e&&e.message)?'読み取れませんでした：'+e.message:'読み取れませんでした';
+      setPdfState(q,'error',msg);
+      if(code==='not_granted'||code==='sampling_disabled'){aiState='unavailable'}
+    }
+  }
+  pdfQueue=pdfQueue.filter(q=>q.state!=='done');
+  if(cur==='purchases'){if($('#vform'))readVoucher();if($('#pimp'))readPimp();render()}
+}
+
+/* ========== 商品 ========== */
+let prodQ='';
+function viewProducts(el){
+  const c=getCalc(),st=purchaseStats();
+  let list=DB.products.slice();
+  if(prodQ){const q=prodQ.toLowerCase();list=list.filter(p=>prodLabel(p).toLowerCase().includes(q)||String(p.category||'').toLowerCase().includes(q))}
+  list.sort((a,b)=>String(a.code||'').localeCompare(String(b.code||''),'ja')||a.name.localeCompare(b.name,'ja'));
+  el.innerHTML=`
+  <section class="card"><h2>商品を追加</h2>
+    <div class="grid g4"><label class="field"><span>商品コード</span><input id="npCode" placeholder="販売CSVの商品コードと同じにすると自動で紐付きます"></label>
+    <label class="field"><span>商品名<b class="req">必須</b></span><input id="npName"></label>
+    <label class="field"><span>区分</span><input id="npCat" placeholder="注入剤、糸、機器など"></label><label class="field"><span>仕入単位</span><input id="npUnit" placeholder="箱、本、vialなど"></label></div>
+    <div class="actions"><button class="btn primary" id="npAdd">追加する</button></div>
+  </section>
+  <section class="card">
+    <div class="spread"><h2>商品（${DB.products.length}）</h2><input type="text" id="pq" value="${esc(prodQ)}" placeholder="コード・名前・区分で絞り込む" style="max-width:280px"></div>
+    ${list.length?`<div class="tablewrap"><table><thead><tr><th>商品</th><th>区分</th>${settings.costMethod==='moving'?'<th class="n">理論在庫</th><th class="n">移動平均原価</th>':'<th class="n">手入力の原価</th>'}<th>直近の仕入</th><th>最安の仕入</th><th class="n">仕入先数</th></tr></thead><tbody>
+    ${list.map(p=>{const s=st.get(p.id),k=c.stock.get(p.id);return `<tr class="click" data-pid="${esc(p.id)}" tabindex="0"><td class="name">${esc(p.name)}<span class="sub">${esc(p.code||'コードなし')}${p.unit?'・単位 '+esc(p.unit):''}</span></td><td>${esc(p.category||'')}</td>
+      ${settings.costMethod==='moving'?`<td class="n ${k&&k.qty<0?'neg':''}">${k?num(k.qty):'—'}</td><td class="n">${k?yen(k.avg):'—'}</td>`:`<td class="n">${Number(p.std_cost)>0?yen(p.std_cost):'—'}</td>`}
+      <td>${s&&s.last?`<span class="n">${yen(s.last.cost)}</span><span class="sub">${esc(supName(s.last.sid))}・${s.last.date}</span>`:'—'}</td>
+      <td>${s&&s.min?`<span class="n">${yen(s.min.cost)}</span><span class="sub">${esc(supName(s.min.sid))}・${s.min.date}</span>`:'—'}</td>
+      <td class="n">${s?s.bySup.size:0}</td></tr>`}).join('')}
+    </tbody></table></div>${settings.costMethod==='moving'?'<p class="hint">理論在庫は「登録した仕入 − 取り込んだ販売」の数です。実在庫とずれる場合は、期首在庫の登録漏れか販売コードの紐付け漏れを確認してください。</p>':'<p class="hint">原価は直近の仕入単価を使います。仕入がまだない商品だけ、手入力の原価を使います。</p>'}`:'<p class="hint">商品がありません。「Bカートのセット」で商品CSVを取り込むと、まとめて作成されます。</p>'}
+  </section>`;
+  $('#npAdd').onclick=async()=>{const name=$('#npName').value.trim(),code=$('#npCode').value.trim();if(!name){toast('商品名を入れてください','err');return}
+    if(code&&DB.products.some(p=>p.code===code)){toast(`コード「${code}」はすでに登録されています`,'err');return}
+    await save('products',{id:uid(),code,name,category:$('#npCat').value.trim(),unit:$('#npUnit').value.trim(),memo:''});toast('追加しました');render()};
+  $('#pq').oninput=e=>{prodQ=e.target.value;const pos=e.target.selectionStart;render();const i=$('#pq');i.focus();i.setSelectionRange(pos,pos)};
+  el.querySelectorAll('[data-pid]').forEach(tr=>{tr.onclick=()=>openProduct(tr.dataset.pid);tr.onkeydown=e=>{if(e.key==='Enter')openProduct(tr.dataset.pid)}});
+}
+function openProduct(pid){
+  const p=DB.products.find(x=>x.id===pid);if(!p)return;
+  const c=getCalc(),st=purchaseStats().get(pid),k=c.stock.get(pid);
+  const sups=st?[...st.bySup.values()].sort((a,b)=>a.avg-b.avg):[];
+  const purchases=DB.purchases.filter(x=>x.product_id===pid).sort((a,b)=>b.date.localeCompare(a.date));
+  const months=new Map();
+  DB.sales.forEach(s=>{const i=c.saleInfo.get(s.id);if(!i||i.pid!==pid)return;const m=s.date.slice(0,7);let r=months.get(m);if(!r){r={qty:0,sales:0,cost:0,cq:0,cs:0};months.set(m,r)}const q=s.qty*(i.per||1);r.qty+=q;r.sales+=s.amount;if(i.unit!=null){r.cost+=i.unit*q;r.cq+=q;r.cs+=s.amount}});
+  const mk=[...months.keys()].sort().reverse().slice(0,12);
+  const maps=DB.codemap.filter(m=>m.product_id===pid);const psets=DB.sets.filter(x=>x.product_id===pid);const psup=DB.supitems.filter(x=>x.product_id===pid);
+  const d=openModal(`
+    <h2>${esc(p.name)}</h2><p class="hint">${esc(p.code||'コードなし')}${settings.costMethod==='moving'?`　理論在庫 ${k?num(k.qty):'—'}${esc(p.unit||'')}　移動平均原価 ${k?yen(k.avg):'—'}`:`　直近の仕入単価 ${k&&k.last?yen(k.last.cost):'—'}　手入力の原価 ${Number(p.std_cost)>0?yen(p.std_cost):'—'}`}</p>
+    <section><h3>仕入先ごとの単価（付帯費用込み・円）</h3>
+    ${sups.length?`<div class="tablewrap"><table><thead><tr><th>仕入先</th><th class="n">回数</th><th class="n">数量</th><th class="n">平均単価</th><th class="n">最安</th><th class="n">直近</th><th>直近日</th></tr></thead><tbody>
+    ${sups.map((s,i)=>`<tr><td>${esc(supName(s.sid))}${i===0&&sups.length>1?' <span class="tag ok">平均最安</span>':''}</td><td class="n">${s.count}</td><td class="n">${num(s.qty)}</td><td class="n">${yen(s.avg)}</td><td class="n">${yen(s.min)}</td><td class="n">${yen(s.last.cost)}</td><td>${s.last.date}</td></tr>`).join('')}
+    </tbody></table></div>`:'<p class="hint">仕入の登録がありません。</p>'}</section>
+    <section><h3>月ごとの販売</h3>
+    ${mk.length?`<div class="tablewrap"><table><thead><tr><th>月</th><th class="n">数量</th><th class="n">売上</th><th class="n">平均売価</th><th class="n">平均原価</th><th class="n">粗利率</th></tr></thead><tbody>
+    ${mk.map(m=>{const r=months.get(m);const mg=r.cs?(r.cs-r.cost)/r.cs:null;return `<tr><td>${m.replace('-','/')}</td><td class="n">${num(r.qty)}</td><td class="n">${yen(r.sales)}</td><td class="n">${yen(r.sales/r.qty)}</td><td class="n">${r.cq?yen(r.cost/r.cq):'—'}</td><td class="n ${mg!=null&&mg<settings.lowMargin/100?'low':''}">${pct(mg)}</td></tr>`}).join('')}
+    </tbody></table></div>`:'<p class="hint">販売の記録がありません。</p>'}</section>
+    <section><h3>仕入の履歴</h3>
+    ${purchases.length?`<div class="tablewrap" style="max-height:260px;overflow-y:auto"><table><thead><tr><th>仕入日</th><th>仕入先</th><th class="n">数量</th><th class="n">単価</th><th class="n">原価単価（円）</th></tr></thead><tbody>
+    ${purchases.slice(0,100).map(x=>`<tr><td>${x.date}</td><td>${esc(supName(x.supplier_id))}${x.doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}${x.desc?`<span class="sub">${esc(x.sku?x.sku+'｜':'')}${esc(x.desc)}</span>`:''}</td><td class="n">${num(x.qty)}</td><td class="n">${x.currency} ${num(x.unit_price,2)}</td><td class="n">${yen(unitCost(x))}</td></tr>`).join('')}
+    </tbody></table></div>`:'<p class="hint">ありません。</p>'}</section>
+    ${psup.length?`<section><h3>仕入先の品目</h3><div class="tablewrap"><table><thead><tr><th>仕入先</th><th>SKU</th><th>品名（請求書）</th><th class="n">入数</th><th></th></tr></thead><tbody>${psup.map(x=>`<tr><td>${esc(x.supplier)}</td><td>${esc(x.sku||'')}</td><td>${esc(x.desc)}</td><td class="n">${num(x.per||1,2)}</td><td><button class="btn small" data-unsup="${esc(x.id)}">対応を解除</button></td></tr>`).join('')}</tbody></table></div><p class="hint">解除すると、次に同じ品目を取り込むときに仕入商品を選び直します。登録済みの仕入は変わりません。</p></section>`:''}
+    ${psets.length?`<section><h3>この商品として売っているBカートのセット</h3><div class="tablewrap"><table><thead><tr><th>セットID</th><th>商品名／セット名</th><th class="n">入数</th><th class="n">単価</th><th>状態</th></tr></thead><tbody>${psets.map(x=>`<tr><td>${esc(x.set_id)}</td><td>${esc(x.product_name)}<span class="sub">${esc(x.set_name)}</span></td><td class="n">${num(x.per||1,2)}</td><td class="n">${yen(x.price)}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table></div></section>`:''}
+    ${maps.length?`<section><h3>紐付けている販売コード</h3><p>${maps.map(m=>esc(m.id.slice(2))).join('、')}</p></section>`:''}
+    <section><h3>商品情報を編集</h3>
+      <div class="grid g3"><label class="field"><span>商品コード</span><input id="epCode" value="${esc(p.code)}"></label><label class="field"><span>商品名</span><input id="epName" value="${esc(p.name)}"></label><label class="field"><span>区分</span><input id="epCat" value="${esc(p.category||'')}"></label><label class="field"><span>仕入単位</span><input id="epUnit" value="${esc(p.unit||'')}" placeholder="箱、本、vialなど"></label><label class="field"><span>手入力の原価（円・1仕入単位）</span><input id="epStd" type="number" min="0" step="any" value="${esc(p.std_cost||'')}" placeholder="仕入がないときに使います"></label></div>
+      <label class="field" style="margin-top:.6rem"><span>メモ</span><input id="epMemo" value="${esc(p.memo||'')}"></label>
+      <div class="actions"><button class="btn danger" id="epDel">商品を削除</button><button class="btn primary" id="epSave">変更を保存</button></div>
+    </section>`,true);
+  d.querySelectorAll('[data-unsup]').forEach(b=>b.onclick=async()=>{await removeRows('supitems',b.dataset.unsup);closeModal();openProduct(pid);toast('対応を解除しました')});
+  $('#epSave',d).onclick=async()=>{const name=$('#epName',d).value.trim(),code=$('#epCode',d).value.trim();if(!name){toast('商品名を入れてください','err');return}
+    if(code&&DB.products.some(x=>x.code===code&&x.id!==pid)){toast(`コード「${code}」は別の商品で使われています`,'err');return}
+    await save('products',Object.assign({},p,{name,code,category:$('#epCat',d).value.trim(),unit:$('#epUnit',d).value.trim(),std_cost:Number($('#epStd',d).value)>0?Number($('#epStd',d).value):null,memo:$('#epMemo',d).value.trim()}));closeModal();toast('保存しました');render()};
+  $('#epDel',d).onclick=async()=>{
+    if(purchases.length){toast(`仕入が${purchases.length}件登録されているため削除できません。先に仕入を削除してください`,'err');return}
+    closeModal();if(!await askConfirm(`「${p.name}」を削除します。この商品への紐付け（Bカートのセット${psets.length}件を含む）も外れます。`))return;
+    await removeRows('codemap',maps.map(m=>m.id));if(psets.length)await save('sets',psets.map(x=>Object.assign({},x,{product_id:null})));await removeRows('products',pid);toast('削除しました');render()};
+}
+
+/* ========== 仕入先の比較 ========== */
+let cmp={period:'12',multi:true,q:''};
+function viewCompare(el){
+  let from='';if(cmp.period!=='all'){const n=new Date();from=isoLocal(new Date(n.getFullYear(),n.getMonth()-Number(cmp.period),n.getDate()))}
+  const st=purchaseStats(from);
+  let items=[...st.entries()].map(([pid,r])=>{const p=DB.products.find(x=>x.id===pid);const sups=[...r.bySup.values()].sort((a,b)=>a.avg-b.avg);const best=sups[0]?sups[0].avg:0;
+    const diff=sups.reduce((s,x)=>s+(x.avg-best)*x.qty,0);const maxAvg=sups.length?sups[sups.length-1].avg:0;return{pid,p,sups,best,diff,maxAvg,qty:r.qty}}).filter(x=>x.p);
+  if(cmp.multi)items=items.filter(x=>x.sups.length>1);
+  if(cmp.q){const q=cmp.q.toLowerCase();items=items.filter(x=>prodLabel(x.p).toLowerCase().includes(q))}
+  items.sort((a,b)=>b.diff-a.diff);
+  const totalDiff=items.reduce((s,x)=>s+x.diff,0);
+  el.innerHTML=`
+  <section class="period">
+    <div class="seg" role="group" aria-label="仕入の期間">${[['6','直近6か月'],['12','直近12か月'],['all','全期間']].map(([k,l])=>`<button class="${cmp.period===k?'on':''}" data-period="${k}">${l}</button>`).join('')}</div>
+    <label class="radio" style="margin:0"><input type="checkbox" id="cmMulti" ${cmp.multi?'checked':''}>複数の仕入先から買っている商品だけ</label>
+    <input type="text" id="cmQ" value="${esc(cmp.q)}" placeholder="商品で絞り込む" style="max-width:240px">
+  </section>
+  <section class="eq" aria-label="仕入単価の差">
+    <div class="term"><div class="l">すべて平均最安の仕入先で買っていた場合との差額</div><div class="v n ${totalDiff>0?'neg':''}">${yen(totalDiff)}</div></div>
+  </section>
+  <p class="hint" style="margin-bottom:1rem">単価は付帯費用を配分し円に換算した原価単価です。差額は「各仕入先の平均単価 − 最も安い仕入先の平均単価」×数量の合計で、差額が大きい商品から並べています。</p>
+  <section class="card">${items.length?items.map(x=>`<div class="cmp">
+    <div class="cmp-head"><h3><button class="linkbtn" data-pid="${esc(x.pid)}">${esc(prodLabel(x.p))}</button></h3><span>${x.diff>0?`差額 <b class="n neg">${yen(x.diff)}</b>`:'<span class="hint">差額なし</span>'}</span></div>
+    <div class="tablewrap"><table><thead><tr><th>仕入先</th><th class="n">回数</th><th class="n">数量</th><th class="n">平均単価</th><th class="n">最安</th><th class="n">直近</th><th>直近日</th><th class="barcell">平均単価の比較</th></tr></thead><tbody>
+    ${x.sups.map((s,i)=>`<tr><td>${esc(supName(s.sid))}${i===0&&x.sups.length>1?' <span class="tag ok">平均最安</span>':''}</td><td class="n">${s.count}</td><td class="n">${num(s.qty)}</td><td class="n">${yen(s.avg)}</td><td class="n">${yen(s.min)}</td><td class="n">${yen(s.last.cost)}</td><td>${s.last.date}</td>
+      <td class="barcell"><div class="bar ${i===0?'best':''}" style="width:${x.maxAvg?Math.max(4,s.avg/x.maxAvg*100):0}%"></div>${i>0?`<span class="sub">+${pct((s.avg-x.best)/x.best)}</span>`:''}</td></tr>`).join('')}
+    </tbody></table></div></div>`).join(''):`<p class="hint">${DB.purchases.length?'条件に合う商品がありません。':'仕入が登録されると、ここで仕入先ごとの単価を比べられます。'}</p>`}</section>`;
+  el.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{cmp.period=b.dataset.period;render()});
+  $('#cmMulti').onchange=e=>{cmp.multi=e.target.checked;render()};
+  $('#cmQ').onchange=e=>{cmp.q=e.target.value;render()};
+  el.querySelectorAll('[data-pid]').forEach(b=>b.onclick=()=>openProduct(b.dataset.pid));
+}
+
+/* ========== 設定 ========== */
+const SQL=TABLES.map(t=>`create table if not exists arari_${t} (\n  id text primary key,\n  data jsonb not null,\n  updated_at timestamptz default now()\n);\nalter table arari_${t} enable row level security;\ncreate policy "arari_${t}_${SERVER_MODE?'auth':'anon'}" on arari_${t} for all to ${SERVER_MODE?'authenticated':'anon'} using (true) with check (true);`).join('\n\n');
+function viewSettings(el){
+  const counts=TABLES.map(t=>DB[t].length);
+  el.innerHTML=`
+  <section class="card"><h2>原価の出し方</h2>
+    <label class="radio"><input type="radio" name="cm" value="latest" ${settings.costMethod!=='moving'?'checked':''}><span><strong>直近の仕入単価（おすすめ）</strong><span class="sub">販売日の時点で一番新しい仕入の原価単価（付帯費用込み）を使います。在庫の登録がいらず、仕入値の上がり下がりもすぐ粗利に出ます。仕入がまだない商品は、手入力の原価を使います。</span></span></label>
+    <label class="radio"><input type="radio" name="cm" value="moving" ${settings.costMethod==='moving'?'checked':''}><span><strong>移動平均</strong><span class="sub">手元在庫と合わせた平均単価を使います。期首在庫を含めて在庫を正しく登録している場合に向いています。</span></span></label>
+  </section>
+  <section class="card" id="ratecard"><h2>為替レート</h2>
+    <p class="hint">外貨の仕入は、仕入日（請求日）以前で一番新しいレートで円に換算します。月初に1つ入れる、請求書の日付ごとに入れる、など自由に決められます。ここを変えると、「設定のレートを使う」にした仕入の原価と粗利がすべて計算し直されます。</p>
+    ${(()=>{const used=new Map();DB.purchases.forEach(p=>{if(p.fx_mode!=='table'||p.currency==='JPY')return;const e=rateEntry(p.currency,p.date);const k=e?e.id:'none:'+p.currency;used.set(k,(used.get(k)||0)+1)});
+      const rows=DB.rates.slice().sort((a,b)=>a.currency.localeCompare(b.currency)||b.from.localeCompare(a.from));
+      const missing=[...used.keys()].filter(k=>k.startsWith('none:'));
+      return `${missing.length?`<div class="note warn" style="margin:.6rem 0">${missing.map(k=>`${esc(k.slice(5))}：レートがなく原価に使えていない仕入 ${used.get(k)}件`).join('<br>')}。その仕入日より前の日付でレートを追加してください。</div>`:''}
+      <div class="tablewrap" style="margin:.6rem 0"><table><thead><tr><th>通貨</th><th>適用開始日</th><th class="n">1通貨あたりの円</th><th class="n">使っている仕入</th><th></th></tr></thead><tbody>
+      ${rows.map(r=>`<tr data-rate="${esc(r.id)}"><td>${esc(r.currency)}</td><td><input type="date" data-rf="from" value="${esc(r.from)}" style="width:auto"></td><td><input type="number" step="any" min="0" class="n" data-rf="rate" value="${esc(r.rate)}" style="width:8rem"></td><td class="n">${used.get(r.id)||0}件</td><td><button class="btn small danger" data-delrate>削除</button></td></tr>`).join('')}
+      <tr><td><select id="nrCur" style="width:auto">${CURRENCIES.filter(c=>c!=='JPY').map(c=>`<option>${c}</option>`).join('')}</select></td><td><input type="date" id="nrFrom" value="${isoLocal(new Date(new Date().getFullYear(),new Date().getMonth(),1))}" style="width:auto"></td><td><input type="number" step="any" min="0" class="n" id="nrRate" placeholder="例：200" style="width:8rem"></td><td></td><td><button class="btn small primary" id="nrAdd">追加</button></td></tr>
+      </tbody></table></div>`})()}
+    <p class="hint">伝票ごとに「個別に入れる」にした仕入は、ここのレートの影響を受けません。</p>
+  </section>
+  <section class="card"><h2>表示と取込</h2>
+    <div class="grid g4">
+      <label class="field"><span>粗利率の注意ライン（%）</span><input type="number" id="stLow" value="${settings.lowMargin}" min="0" max="100"></label>
+      <label class="field"><span>消費税率（%）</span><input type="number" id="stTax" value="${settings.taxRate}" min="0" max="30"></label>
+      <label class="field"><span>販売CSVの金額</span><select id="stTaxIn"><option value="0" ${!settings.salesTaxIncluded?'selected':''}>税抜</option><option value="1" ${settings.salesTaxIncluded?'selected':''}>税込</option></select></label>
+    </div>
+    <p class="hint" style="margin-top:.5rem">販売CSVの列の対応は、取込時に選んだものを覚えています。${settings.saleMapping?'<button class="linkbtn" id="stResetMap">列の対応を忘れる</button>':''}</p>
+  </section>
+  ${SERVER_MODE?`<section class="card"><h2>データの保存先</h2>
+    <p>Supabase（${esc(APP_CONFIG.supabaseUrl.replace(/^https?:\/\//,''))}）に保存しています。ログインした全員が同じデータを見ます。</p>
+    <p>ログイン中：<strong>${esc(authUser&&authUser.email||'')}</strong>（商品 ${counts[0]}・仕入先 ${counts[1]}・仕入 ${counts[2]}・販売 ${counts[3]}）</p>
+    <div class="actions left"><button class="btn" id="logout2">ログアウト</button></div>
+    <details style="margin-top:.8rem"><summary>Supabaseのテーブル（SQL）</summary><pre class="sql" id="sqlText">${esc(SQL)}</pre><button class="btn small" id="sqlCopy">SQLをコピー</button></details>
+  </section>`:`<section class="card"><h2>データの保存先</h2>
+    <p>現在：<strong>${esc(backend.name)}</strong>（商品 ${counts[0]}・仕入先 ${counts[1]}・仕入 ${counts[2]}・販売 ${counts[3]}）</p>
+    <label class="radio"><input type="radio" name="be" value="local" ${settings.backend!=='supabase'?'checked':''}><span><strong>この端末</strong><span class="sub">このブラウザの中に保存します。他のPCやスタッフとは共有されません。</span></span></label>
+    <label class="radio"><input type="radio" name="be" value="supabase" ${settings.backend==='supabase'?'checked':''}><span><strong>Supabase</strong><span class="sub">複数のPC・担当者で同じデータを見られます。GitHub Pagesなど自社で置いたページで使います（claude.ai上で開いたページからは接続できません）。</span></span></label>
+    <div class="grid g3" style="margin-top:.6rem">
+      <label class="field"><span>Project URL</span><input id="sbUrl" value="${esc(settings.sbUrl)}" placeholder="https://xxxx.supabase.co"></label>
+      <label class="field"><span>anon key</span><input id="sbKey" type="password" value="${esc(settings.sbKey)}"></label>
+    </div>
+    <div class="actions left"><button class="btn" id="sbTest">接続を確認</button><button class="btn primary" id="beApply">保存先を切り替える</button><button class="btn" id="sbCopy">この端末のデータをSupabaseへコピー</button></div>
+    <details style="margin-top:.8rem"><summary>Supabaseに作るテーブル（SQL Editorで実行）</summary>
+      <p class="hint">下のポリシーは anon key を知っている人なら読み書きできる設定です。URLとキーはこのブラウザにだけ保存され、ページのファイルには含まれません。社外に出したくない場合は、ログインを付けてポリシーを authenticated に絞ってください。</p>
+      <pre class="sql" id="sqlText">${esc(SQL)}</pre><button class="btn small" id="sqlCopy">SQLをコピー</button>
+    </details>
+  </section>`}
+  <section class="card"><h2>バックアップ</h2>
+    <p class="hint">すべてのデータを1つのJSONファイルに書き出し、あとで読み込めます。読み込むと、今の保存先のデータは置き換わります。</p>
+    <div class="actions left"><button class="btn" id="bkOut">JSONに書き出す</button><label class="btn">JSONを読み込む<input type="file" id="bkIn" accept=".json,application/json" hidden></label></div>
+  </section>
+  <section class="card"><h2>お試しと初期化</h2>
+    <p class="hint">サンプルデータは、韓国の仕入先3社と国内卸1社から同じ商品を違う単価で仕入れ、半年分を販売した想定です。今のデータに追加されます。</p>
+    <div class="actions left"><button class="btn" id="sample">サンプルデータを入れる</button><button class="btn danger" id="wipe">すべてのデータを削除</button></div>
+  </section>`;
+  $('#nrAdd').onclick=async()=>{const cur=$('#nrCur').value,from=$('#nrFrom').value,rate=Number($('#nrRate').value);
+    if(!from){toast('適用開始日を入れてください','err');return}if(!(rate>0)){toast('レートを入れてください','err');return}
+    if(DB.rates.some(r=>r.currency===cur&&r.from===from)){toast(`${cur}の${from}のレートはすでにあります。表の数字を直してください`,'err');return}
+    await save('rates',{id:'fx:'+cur+':'+from,currency:cur,from,rate});toast(`${cur}のレートを追加しました`);render();$('#ratecard').scrollIntoView({block:'start'})};
+  el.querySelectorAll('tr[data-rate]').forEach(tr=>{const r0=()=>DB.rates.find(x=>x.id===tr.dataset.rate);
+    tr.querySelectorAll('[data-rf]').forEach(i=>i.onchange=async()=>{const r=r0();const v=i.dataset.rf==='rate'?Number(i.value):i.value;
+      if(i.dataset.rf==='rate'&&!(v>0)){toast('レートは0より大きい数にしてください','err');i.value=r.rate;return}
+      if(i.dataset.rf==='from'&&(!v||DB.rates.some(x=>x.id!==r.id&&x.currency===r.currency&&x.from===v))){toast('その日付はすでにあるか、空です','err');i.value=r.from;return}
+      await save('rates',Object.assign({},r,{[i.dataset.rf]:v}));toast('レートを変更しました。原価を計算し直しました');render();$('#ratecard').scrollIntoView({block:'start'})});
+    tr.querySelector('[data-delrate]').onclick=async()=>{const r=r0();if(!await askConfirm(`${r.currency} ${r.from} のレートを削除します。これを使っている仕入は、さらに前のレートを使うか、なければ原価に使えなくなります。`))return;await removeRows('rates',r.id);render();$('#ratecard').scrollIntoView({block:'start'})};
+  });
+  el.querySelectorAll('input[name="cm"]').forEach(r=>r.onchange=()=>{settings.costMethod=r.value;saveSettings();invalidate();toast('原価の出し方を変更しました')});
+  $('#stLow').onchange=e=>{settings.lowMargin=Number(e.target.value)||0;saveSettings()};
+  $('#stTax').onchange=e=>{settings.taxRate=Number(e.target.value)||0;saveSettings()};
+  $('#stTaxIn').onchange=e=>{settings.salesTaxIncluded=e.target.value==='1';saveSettings()};
+  if($('#stResetMap'))$('#stResetMap').onclick=()=>{settings.saleMapping=null;saveSettings();render()};
+  const testClient=async()=>{const url=$('#sbUrl').value.trim(),key=$('#sbKey').value.trim();if(!url||!key)throw new Error('URLとanon keyを入れてください');if(!window.supabase)throw new Error('Supabaseのライブラリを読み込めませんでした');
+    const cl=window.supabase.createClient(url,key,{auth:{persistSession:false}});for(const t of TABLES){const{error}=await cl.from('arari_'+t).select('id').limit(1);if(error)throw new Error(`arari_${t}：${error.message}`)}return{url,key}};
+  if($('#sbTest'))$('#sbTest').onclick=async()=>{try{await testClient();toast('接続できました。テーブルもそろっています')}catch(e){toast('接続できません：'+e.message,'err')}};
+  if($('#sbTest'))$('#beApply').onclick=async()=>{const v=$('input[name="be"]:checked').value;
+    if(v==='supabase'){try{const{url,key}=await testClient();settings.sbUrl=url;settings.sbKey=key}catch(e){toast('接続できません：'+e.message,'err');return}}
+    settings.backend=v;saveSettings();await initBackend();await loadAll();toast('保存先を切り替えました');render()};
+  if($('#sbTest'))$('#sbCopy').onclick=async()=>{let cfg;try{cfg=await testClient()}catch(e){toast('接続できません：'+e.message,'err');return}
+    const d=await LocalBackend.loadAll().catch(()=>null);if(!d){toast('この端末のデータを読めませんでした','err');return}
+    const n=TABLES.reduce((s,t)=>s+d[t].length,0);if(!await askConfirm(`この端末の${n}件をSupabaseへコピーします（同じIDは上書き）。`,'コピーする',false))return;
+    try{RemoteBackend.init(cfg.url,cfg.key);for(const t of TABLES)await RemoteBackend.put(t,d[t]);toast('コピーしました。保存先をSupabaseに切り替えると使えます')}catch(e){toast('コピーできませんでした：'+e.message,'err')}};
+  $('#sqlCopy').onclick=async()=>{try{await navigator.clipboard.writeText(SQL);toast('コピーしました')}catch(e){const r=document.createRange();r.selectNodeContents($('#sqlText'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('選択しました。Ctrl+Cでコピーしてください')}};
+  if($('#logout2'))$('#logout2').onclick=logout;
+  $('#bkOut').onclick=exportJson;
+  $('#bkIn').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(!j.data)throw new Error('形式が違います');
+    if(!await askConfirm(`${f.name} を読み込み、今の保存先（${backend.name}）のデータを置き換えます。${SERVER_MODE?'\nログインしている全員のデータが置き換わります。':''}`,'置き換える'))return;
+    toast('読み込んでいます…');
+    await backend.clear();for(const t of TABLES){DB[t]=j.data[t]||[];await backend.put(t,DB[t])}
+    if(j.settings){['costMethod','costV2','salesTaxIncluded','taxRate','lowMargin','saleMapping'].forEach(k=>{if(j.settings[k]!==undefined)settings[k]=j.settings[k]});saveSettings()}
+    invalidate();toast('読み込みました');render()}catch(x){toast('読み込めませんでした：'+x.message,'err')}};
+  $('#sample').onclick=async()=>{if(!await askConfirm('サンプルデータを今のデータに追加します。','追加する',false))return;await loadSample();toast('サンプルデータを入れました');go('dash')};
+  $('#wipe').onclick=async()=>{if(!await askConfirm(`保存先（${backend.name}）のデータをすべて削除します。元に戻せません。`,'すべて削除'))return;try{await backend.clear();TABLES.forEach(t=>DB[t]=[]);invalidate();toast('削除しました');render()}catch(e){toast('削除できませんでした：'+e.message,'err')}};
+}
+async function exportJson(){
+  const s=Object.assign({},settings);delete s.sbKey;
+  const text=JSON.stringify({app:'arari-daicho',version:1,exportedAt:new Date().toISOString(),settings:s,data:DB});
+  const filename=`粗利台帳_${isoLocal(new Date())}.json`;
+  try{
+    const dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null;
+    if(dl){await dl.save({filename,data:text});return}
+  }catch(e){if(e&&e.code==='declined')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
+
+/* ========== サンプルデータ ========== */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+async function loadSample(){
+  const R=mulberry32(20260916);
+  const P=[['HA-FILL-1','ヒアルロン酸フィラー 1ml','注入剤',17500,3900],['PDO-19G','PDO糸 19G 100mm（10本）','糸',52000,9800],['PEEL-30','ピーリング剤 30ml','ピーリング',21000,2650],['BTX-100','ボツリヌス製剤 100単位','注入剤',38000,7400],['SKB-5','スキンブースター 2ml×5本','注入剤',61000,11800]]
+    .map(([code,name,category,krw,sell])=>({id:uid(),code:'SMP-'+code,name,category,memo:'サンプル',krw,sell}));
+  const S=[['韓国ブローカーA（サンプル）',1.0,'KRW'],['韓国ブローカーB（サンプル）',0.93,'KRW'],['韓国ブローカーC（サンプル）',1.06,'KRW'],['国内卸D（サンプル）',1.18,'JPY']].map(([name,f,cur])=>({id:uid(),name,memo:'',f,cur}));
+  const custs=['Aクリニック','B美容皮膚科','Cスキンクリニック','D形成外科','E医院','Fクリニック','G美容外科','Hクリニック'];
+  const purchases=[],sales=[];const now=new Date();
+  for(let mo=-6;mo<=0;mo++){
+    const maxDay=mo===0?Math.max(1,now.getDate()):28;
+    const day=dd=>isoLocal(new Date(now.getFullYear(),now.getMonth()+mo,Math.min(dd,maxDay)));
+    const plan=mo===-6?[[0,1,P.map(()=>1)]]:[[mo%2===0?0:1,3,null],[R()<.5?2:3,12,null]];
+    for(const [si,dd,forced] of plan){
+      const s=S[si];const vid=uid();const fx=s.cur==='KRW'?0.104+R()*0.008:1;
+      const chosen=forced?P:P.filter(()=>R()<.6);if(!chosen.length)chosen.push(P[0]);
+      const extra=s.cur==='KRW'?Math.round(5000+R()*9000):0;
+      const lines=chosen.map(p=>{const qty=(forced?40:10+Math.floor(R()*30));const base=p.krw*s.f*(0.96+R()*0.08);const unit=s.cur==='KRW'?Math.round(base/10)*10:Math.round(base*0.108);return{p,qty,unit}});
+      const total=lines.reduce((t,l)=>t+l.qty*l.unit*fx,0);
+      lines.forEach(l=>purchases.push({id:uid(),voucher:vid,date:day(dd),supplier_id:s.id,no:`SMP-${mo+7}-${si}`,currency:s.cur,fx:Number(fx.toFixed(4)),product_id:l.p.id,qty:l.qty,unit_price:l.unit,extra:extra*(l.qty*l.unit*fx)/total,memo:'サンプル'}));
+    }
+    const nSales=mo===0?Math.max(3,Math.round(30*maxDay/28)):30;
+    for(let k=0;k<nSales;k++){
+      const p=P[Math.floor(R()*P.length)];const qty=1+Math.floor(R()*8);const unit=Math.round(p.sell*(0.92+R()*0.14)/10)*10;
+      const dd=mo===-6?2+Math.floor(R()*26):1+Math.floor(R()*maxDay);
+      sales.push({id:'smp_'+uid(),batch:'sample',date:day(dd),orderNo:`SMP${mo+7}${String(k).padStart(3,'0')}`,customer:custs[Math.floor(R()*custs.length)],code:p.code,name:p.name,qty,unit,amount:unit*qty});
+    }
+    sales.push({id:'smp_'+uid(),batch:'sample',date:day(15),orderNo:`SMP${mo+7}SHIP`,customer:custs[0],code:'SHIP',name:'送料',qty:1,unit:1100,amount:1100});
+  }
+  await save('products',P.map(({krw,sell,...p})=>p));
+  await save('suppliers',S.map(({f,cur,...s})=>s));
+  await save('purchases',purchases);
+  await save('batches',{id:'sample',file:'サンプルデータ',importedAt:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,19),rows:sales.length,from:sales.reduce((m,s)=>s.date<m?s.date:m,'9999'),to:sales.reduce((m,s)=>s.date>m?s.date:m,'')});
+  await save('sales',sales);
+}
+
+/* ========== 起動 ========== */
+function renderLogin(msg){
+  $('#tabs').innerHTML='';$('#storeBadge').textContent='';$('#banner').innerHTML='';
+  $('#view').innerHTML=`<section class="card" style="max-width:420px;margin:8vh auto">
+    <h2>ログイン</h2><p class="hint">登録されたメールアドレスとパスワードでログインしてください。</p>
+    <form id="loginForm" style="display:flex;flex-direction:column;gap:.7rem;margin-top:.8rem">
+      <label class="field"><span>メールアドレス</span><input type="email" id="lgEmail" autocomplete="username" required></label>
+      <label class="field"><span>パスワード</span><input type="password" id="lgPass" autocomplete="current-password" required></label>
+      ${msg?`<div class="note warn">${esc(msg)}</div>`:''}
+      <button class="btn primary" type="submit" id="lgBtn">ログイン</button>
+    </form></section>`;
+  $('#loginForm').onsubmit=async e=>{e.preventDefault();const b=$('#lgBtn');b.disabled=true;b.textContent='確認しています…';
+    const{error}=await RemoteBackend.client.auth.signInWithPassword({email:$('#lgEmail').value.trim(),password:$('#lgPass').value});
+    if(error){renderLogin(/invalid/i.test(error.message)?'メールアドレスかパスワードが違います':'ログインできませんでした：'+error.message);return}
+    startApp()};
+  $('#lgEmail').focus();
+}
+async function logout(){try{await RemoteBackend.client.auth.signOut()}catch(e){}location.reload()}
+async function startApp(){
+  if(SERVER_MODE){
+    if(!window.supabase){$('#view').innerHTML='<div class="banner">Supabaseのライブラリを読み込めませんでした。ネットワークを確認して再読み込みしてください。</div>';return}
+    if(!RemoteBackend.client)RemoteBackend.init(APP_CONFIG.supabaseUrl,APP_CONFIG.supabaseAnonKey,true);
+    const{data}=await RemoteBackend.client.auth.getSession();
+    if(!data||!data.session){renderLogin();return}
+    authUser=data.session.user;
+  }
+  $('#view').innerHTML='<p class="hint">データを読み込んでいます…</p>';
+  await initBackend();await loadAll();render();
+}
+startApp();
+</script>
+</body>
+</html>
