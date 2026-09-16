@@ -468,13 +468,13 @@ function viewDash(el){
   </section>
   ${empty?`<section class="card empty"><h2>まだ販売データがありません</h2><p>販売CSVを取り込み、仕入を登録すると、ここに期間の粗利が出ます。先に動きを見たい場合は、設定からサンプルデータを入れられます。</p><div class="actions left"><button class="btn primary" data-go="sales">販売CSVを取り込む</button><button class="btn" data-go="settings">サンプルデータを入れる</button></div></section>`:''}
   <section class="eq" aria-label="期間の粗利">
-    <div class="term"><div class="l">売上（税抜）</div><div class="v n">${yen(A.costedSales)}</div></div>
+    <div class="term"><div class="l">原価がわかる売上（税抜）</div><div class="v n">${yen(A.costedSales)}</div></div>
     <div class="op" aria-hidden="true">−</div>
     <div class="term"><div class="l">仕入原価</div><div class="v n">${yen(A.cost)}</div></div>
     <div class="op" aria-hidden="true">=</div>
     <div class="term gp"><div class="l">粗利<span class="rate">${pct(A.margin)}</span></div><div class="v n ${A.gp<0?'neg':''}">${yen(A.gp)}</div></div>
   </section>
-  <div class="notes">${notes.join('')}</div>
+  <div class="notes"><div class="note">期間の売上合計（税抜）：商品 ${yen(A.sales+A.unmappedAmount)} ＋ 送料 ${yen(A.shipping)} ＝ <strong class="n">${yen(A.sales+A.unmappedAmount+A.shipping)}</strong>（うち原価がわかる分 ${yen(A.costedSales)}）。Bカートの管理画面の金額は消費税込みなので、これより約1割大きく出ます。</div>${notes.join('')}</div>
   <section class="card"><h2>月ごとの売上と粗利</h2><div class="chartbox"><canvas id="mchart" aria-label="月別の売上と粗利のグラフ"></canvas></div></section>
   ${(()=>{const miss=[...A.byProd.values()].filter(r=>r.none&&r.key!=='__nocost').sort((a,b)=>b.noneSales-a.noneSales);if(!miss.length)return '';const c0=getCalc();
     return `<section class="card"><div class="spread"><h2>原価が決まっていない商品（${miss.length}）</h2><button class="btn small" data-go="purchases">請求書を登録する</button></div>
@@ -823,7 +823,7 @@ function viewSets(el){
 
 /* ========== 仕入 ========== */
 const CURRENCIES=['JPY','KRW','USD','EUR','GBP'];
-const newVoucher=()=>({id:null,date:isoLocal(new Date()),supplier:'',no:'',currency:'JPY',fx:'',fxMode:'table',extra:'',extraFx:0,memo:'',doc:'invoice',lines:[{id:null,label:'',qty:'',unit:''},{id:null,label:'',qty:'',unit:''}]});
+const newVoucher=()=>({id:null,date:isoLocal(new Date()),supplier:'',no:'',currency:'JPY',fx:'',fxMode:'table',extra:'',extraFx:0,memo:'',doc:'invoice',attachments:[],lines:[{id:null,label:'',qty:'',unit:''},{id:null,label:'',qty:'',unit:''}]});
 let vch=newVoucher();
 let pfilter={sup:'',q:''};
 function viewPurchases(el){
@@ -859,6 +859,8 @@ function viewPurchases(el){
       <label class="field"><span>付帯費用の合計（円）</span><input type="number" step="any" min="0" data-v="extra" value="${esc(vch.extra)}" placeholder="送料・関税・通関手数料など">${Number(vch.extraFx)>0?`<span class="hint">このほか請求書の送料 ${esc(vch.currency)} ${num(vch.extraFx,2)} を、レートで円に換算して加えます</span>`:''}</label>
       <label class="field" style="grid-column:span 2"><span>メモ</span><input data-v="memo" value="${esc(vch.memo)}"></label>
     </div>
+    <div class="row" style="margin:-.2rem 0 .8rem"><span class="hint">添付書類：</span>${(vch.attachments||[]).length?(vch.attachments||[]).map((a,i)=>`${attachLinks([a])}<button class="btn small" data-delatt="${i}" aria-label="この書類を外す">×</button>`).join(' '):'<span class="hint">なし</span>'}
+      ${canAttach()?`<label class="btn small">書類を添付<input type="file" id="vAttach" accept="application/pdf,image/*" multiple hidden></label>`:'<span class="hint">（書類の保存は社内サーバー版で使えます）</span>'}</div>
     <div class="tablewrap"><table class="lines"><thead><tr><th>商品</th><th class="n">数量</th><th class="n">単価（${esc(vch.currency)}）</th><th class="n">金額（円）</th><th class="n">付帯費用</th><th class="n">原価単価（円）</th><th></th></tr></thead>
     <tbody>${vch.lines.map((l,i)=>`<tr data-line="${i}"><td style="min-width:240px"><input list="prodlist" data-l="label" value="${esc(l.label)}" placeholder="商品名かコードで検索" aria-label="商品"></td>
       <td><input type="number" step="any" class="w-qty n" data-l="qty" value="${esc(l.qty)}" aria-label="数量"></td>
@@ -874,7 +876,7 @@ function viewPurchases(el){
       <div class="row"><select id="pfSup" style="width:auto"><option value="">すべての仕入先</option>${DB.suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name,'ja')).map(s=>`<option value="${esc(s.id)}" ${pfilter.sup===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
       <input type="text" id="pfQ" value="${esc(pfilter.q)}" placeholder="商品・伝票番号で絞り込む" style="max-width:240px"></div></div>
     ${list.length?`<div class="tablewrap"><table><thead><tr><th>仕入日</th><th>仕入先</th><th>伝票番号</th><th>明細</th><th class="n">原価合計（円）</th><th></th></tr></thead><tbody>
-    ${list.slice(0,300).map(v=>`<tr><td>${v.date}</td><td>${esc(supName(v.sid))}</td><td>${esc(v.no||'')}${v.rows[0].doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}</td>
+    ${list.slice(0,300).map(v=>`<tr><td>${v.date}</td><td>${esc(supName(v.sid))}</td><td>${esc(v.no||'')}${v.rows[0].doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}${(v.rows[0].attachments||[]).length?`<span class="sub">${attachLinks(v.rows[0].attachments)}</span>`:''}</td>
       <td>${v.rows.slice(0,3).map(r=>`${esc(prodLabel(pmap.get(r.product_id)))} × ${num(r.qty)}　<span class="hint">原価単価 ${yen(unitCost(r))}</span>`).join('<br>')}${v.rows.length>3?`<span class="sub">ほか${v.rows.length-3}件</span>`:''}</td>
       <td class="n">${yen(v.total)}</td><td><button class="btn small" data-edit="${esc(v.vid)}">開く</button></td></tr>`).join('')}
     </tbody></table></div>${list.length>300?'<p class="hint">新しい順に300伝票まで表示しています。絞り込みを使ってください。</p>':''}`:'<p class="hint">該当する仕入はありません。</p>'}
@@ -885,7 +887,7 @@ function viewPurchases(el){
   $('#pfQ').onchange=e=>{pfilter.q=e.target.value;render()};
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
     const rows=groups.get(b.dataset.edit);const f=rows[0];
-    const fxv=fxOf(f)||0;vch={id:b.dataset.edit,date:f.date,supplier:supName(f.supplier_id),no:f.no||'',currency:f.currency||'JPY',fx:f.fx_mode==='table'?'':(f.fx||1),fxMode:f.fx_mode==='table'?'table':'manual',extra:Math.round(rows.reduce((s,r)=>s+(Number(r.extra)||0),0)*100)/100||'',extraFx:Math.round(rows.reduce((s,r)=>s+(Number(r.extra_fx)||0),0)*100)/100,memo:f.memo||'',doc:f.doc||'invoice',
+    const fxv=fxOf(f)||0;vch={attachments:(f.attachments||[]).slice(),id:b.dataset.edit,date:f.date,supplier:supName(f.supplier_id),no:f.no||'',currency:f.currency||'JPY',fx:f.fx_mode==='table'?'':(f.fx||1),fxMode:f.fx_mode==='table'?'table':'manual',extra:Math.round(rows.reduce((s,r)=>s+(Number(r.extra)||0),0)*100)/100||'',extraFx:Math.round(rows.reduce((s,r)=>s+(Number(r.extra_fx)||0),0)*100)/100,memo:f.memo||'',doc:f.doc||'invoice',
       lines:rows.map(r=>({id:r.id,label:prodLabel(pmap.get(r.product_id)),qty:r.qty,unit:r.unit_price}))};
     render();$('#vform').scrollIntoView({behavior:'auto',block:'start'});
   });
@@ -919,9 +921,21 @@ function bindVoucher(){
   $('#addLine').onclick=()=>{readVoucher();vch.lines.push({id:null,label:'',qty:'',unit:''});render();const ins=$$('#vform [data-l="label"]');ins[ins.length-1].focus()};
   f.querySelectorAll('[data-delline]').forEach(b=>b.onclick=()=>{readVoucher();vch.lines.splice(+b.dataset.delline,1);if(!vch.lines.length)vch.lines.push({id:null,label:'',qty:'',unit:''});render()});
   $('#vSave').onclick=saveVoucher;
+  const va=$('#vAttach');
+  if(va)va.onchange=async e=>{const files=[...e.target.files];if(!files.length)return;readVoucher();
+    const vid=vch.id||(vch.pendingId=vch.pendingId||uid());
+    try{for(const f of files){toast(`${f.name} を保存しています…`);vch.attachments=(vch.attachments||[]).concat([await uploadAttachment(vid,f)])}}
+    catch(x){toast('書類を保存できませんでした：'+x.message,'err');render();return}
+    if(vch.id){const rows=DB.purchases.filter(p=>(p.voucher||p.id)===vch.id);await save('purchases',rows.map(r=>Object.assign({},r,{attachments:vch.attachments})))}
+    toast('書類を添付しました');render()};
+  f.querySelectorAll('[data-delatt]').forEach(b=>b.onclick=async()=>{readVoucher();const a=vch.attachments[+b.dataset.delatt];
+    if(!await askConfirm(`「${a.name}」を添付書類から外して削除します。`))return;
+    vch.attachments.splice(+b.dataset.delatt,1);
+    if(vch.id){const rows=DB.purchases.filter(p=>(p.voucher||p.id)===vch.id);await save('purchases',rows.map(r=>Object.assign({},r,{attachments:vch.attachments})))}
+    removeAttachments([a.path]);render()});
   if($('#vClear'))$('#vClear').onclick=()=>{vch=newVoucher();render()};
   if($('#vCancel'))$('#vCancel').onclick=()=>{vch=newVoucher();render()};
-  if($('#vDel'))$('#vDel').onclick=async()=>{const ids=DB.purchases.filter(p=>(p.voucher||p.id)===vch.id).map(p=>p.id);if(!await askConfirm(`この伝票（明細${ids.length}件）を削除します。粗利の原価も再計算されます。`))return;await removeRows('purchases',ids);vch=newVoucher();toast('削除しました');render()};
+  if($('#vDel'))$('#vDel').onclick=async()=>{const ids=DB.purchases.filter(p=>(p.voucher||p.id)===vch.id).map(p=>p.id);if(!await askConfirm(`この伝票（明細${ids.length}件）を削除します。${(vch.attachments||[]).length?'添付書類も削除されます。':''}粗利の原価も再計算されます。`))return;await removeRows('purchases',ids);removeAttachments((vch.attachments||[]).map(a=>a.path));vch=newVoucher();toast('削除しました');render()};
   recalcVoucher();
 }
 async function saveVoucher(){
@@ -940,15 +954,35 @@ async function saveVoucher(){
   if(errs.length){toast(errs.slice(0,3).join(' / '),'err');return}
   let sup=DB.suppliers.find(s=>s.name===supN);
   if(!sup){sup={id:uid(),name:supN,memo:''};await save('suppliers',sup)}
-  const vid=vch.id||uid();const extra=Number(vch.extra)||0,extraFx=Number(vch.extraFx)||0;
+  const vid=vch.id||vch.pendingId||uid();const extra=Number(vch.extra)||0,extraFx=Number(vch.extraFx)||0;
   const total=resolved.reduce((s,x)=>s+x.q*x.u*fx,0),tq=resolved.reduce((s,x)=>s+x.q,0);
-  const rows=resolved.map(x=>Object.assign({},DB.purchases.find(p=>p.id===x.l.id)||{},{id:x.l.id||uid(),voucher:vid,doc:vch.doc||'invoice',date:parseDate(vch.date),supplier_id:sup.id,no:String(vch.no||'').trim(),currency:vch.currency,fx,fx_mode:vch.currency==='JPY'?'manual':(vch.fxMode==='manual'?'manual':'table'),extra_fx:total>0?extraFx*(x.q*x.u*fx)/total:extraFx*x.q/tq,product_id:x.p.id,qty:x.q,unit_price:x.u,extra:total>0?extra*(x.q*x.u*fx)/total:extra*x.q/tq,memo:vch.memo||''}));
+  const rows=resolved.map(x=>Object.assign({},DB.purchases.find(p=>p.id===x.l.id)||{},{id:x.l.id||uid(),voucher:vid,doc:vch.doc||'invoice',attachments:vch.attachments||[],date:parseDate(vch.date),supplier_id:sup.id,no:String(vch.no||'').trim(),currency:vch.currency,fx,fx_mode:vch.currency==='JPY'?'manual':(vch.fxMode==='manual'?'manual':'table'),extra_fx:total>0?extraFx*(x.q*x.u*fx)/total:extraFx*x.q/tq,product_id:x.p.id,qty:x.q,unit_price:x.u,extra:total>0?extra*(x.q*x.u*fx)/total:extra*x.q/tq,memo:vch.memo||''}));
   if(vch.id){const keep=new Set(rows.map(r=>r.id));const old=DB.purchases.filter(p=>(p.voucher||p.id)===vid&&!keep.has(p.id)).map(p=>p.id);await removeRows('purchases',old)}
   await save('purchases',rows);
   toast(vch.id?'変更を保存しました':'登録しました');
   const keepHead={date:vch.date,supplier:vch.supplier,currency:vch.currency,fx:vch.fx,fxMode:vch.fxMode};
   vch=Object.assign(newVoucher(),vch.id?{}:keepHead);render();
 }
+/* ========== 添付書類（Supabase Storage） ========== */
+const ATTACH_BUCKET='invoices';
+const canAttach=()=>SERVER_MODE&&RemoteBackend.client&&RemoteBackend.client.storage;
+async function uploadAttachment(vid,file){
+  const ext=(file.name.match(/\.([a-z0-9]{1,5})$/i)||[,'pdf'])[1].toLowerCase();
+  const path=`${vid}/${Date.now()}_${Math.random().toString(36).slice(2,7)}.${ext}`;
+  const{error}=await RemoteBackend.client.storage.from(ATTACH_BUCKET).upload(path,file,{contentType:file.type||'application/pdf',upsert:true});
+  if(error)throw new Error(error.message);
+  return{path,name:file.name,size:file.size,type:file.type||'application/pdf',uploadedAt:new Date().toISOString()};
+}
+async function removeAttachments(paths){if(!canAttach()||!paths.length)return;try{await RemoteBackend.client.storage.from(ATTACH_BUCKET).remove(paths)}catch(e){}}
+async function openAttachment(path){
+  const win=window.open('','_blank');
+  try{const{data,error}=await RemoteBackend.client.storage.from(ATTACH_BUCKET).createSignedUrl(path,600);if(error)throw new Error(error.message);
+    if(win)win.location.href=data.signedUrl;else location.href=data.signedUrl}
+  catch(e){if(win)win.close();toast('書類を開けませんでした：'+e.message,'err')}
+}
+const attachLinks=list=>(list||[]).map(a=>`<button class="linkbtn" data-open-att="${esc(a.path)}" title="${esc(a.name)}">📎 ${esc(a.name.length>28?a.name.slice(0,26)+'…':a.name)}</button>`).join(' ');
+document.addEventListener('click',e=>{const b=e.target.closest('[data-open-att]');if(b){e.preventDefault();e.stopPropagation();openAttachment(b.dataset.openAtt)}});
+
 /* ========== 仕入の請求書明細の取込 ========== */
 const EXTRA_KIND=/送料|付帯|諸経費|手数料|shipping|freight|courier|handling/i;
 const meaningfulSku=sku=>{sku=String(sku||'').trim();return sku&&!/^0+$/.test(sku)?sku:''};
@@ -1014,7 +1048,7 @@ function pimpPanel(){
     ${pimp.errs.length?`<div class="note warn">読み飛ばした行：<br>${pimp.errs.slice(0,20).map(esc).join('<br>')}</div>`:''}
     <p class="hint">為替レートは、設定で決めたレートを請求日に合わせて使います。送金時のレートなど、伝票ごとに変えたいときは「個別に入れる」を選んでください。「明細の合計」が「請求書の総額」と一致しない伝票は登録できません。数字を直すとその場で再チェックします。送料の行は付帯費用として、明細の金額の割合で各商品の原価に配分します。仕入先ごとの品目と仕入商品の対応は覚えるので、次回から自動で入ります。</p>
     ${pimp.vouchers.map((v,vi)=>{const k=pimpCheck(v),c=k.c;return `<div class="cmp" data-pv="${vi}">
-      <div class="cmp-head"><h3>${esc(v.supplier||'（仕入先不明）')}　${esc(v.no||'')}${v.doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}</h3><span>${v.file?`<span class="sub">${esc(v.file)}</span>`:''}${v.exists?' <span class="tag est">登録済み・上書きします</span>':''}</span></div>
+      <div class="cmp-head"><h3>${esc(v.supplier||'（仕入先不明）')}　${esc(v.no||'')}${v.doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}</h3><span>${v.file?`<span class="sub">${esc(v.file)}${v.fileObj?(canAttach()?'（登録時に添付書類として保存）':''):''}</span>`:''}${v.exists?' <span class="tag est">登録済み・上書きします</span>':''}</span></div>
       ${(v.blockers||[]).map(m=>`<div class="note warn">${esc(m)}</div>`).join('')}
       ${(v.msgs||[]).map(m=>`<div class="note est">${esc(m)}</div>`).join('')}
       ${(v.notes||[]).length?`<div class="note">${v.notes.map(esc).join('<br>')}</div>`:''}
@@ -1087,14 +1121,24 @@ async function savePimp(){
   const dup=new Set();for(const v of pimp.vouchers){if(dup.has(v.vid)){toast(`${v.supplier} ${v.no} が2回含まれています`,'err');return}dup.add(v.vid)}
   const over=pimp.vouchers.filter(v=>v.exists);
   if(over.length&&!await askConfirm(`${over.map(v=>`${v.supplier} ${v.no||v.date}`).join('、')} はすでに登録されています。今回の内容で置き換えます。`,'置き換える',false))return;
+  const attMap=new Map(),oldPaths=[];
+  if(canAttach()){
+    const btn=$('#pimpSave');if(btn){btn.disabled=true;btn.textContent='請求書のPDFを保存しています…'}
+    let failed=null;
+    for(const v of pimp.vouchers){if(!v.fileObj)continue;try{attMap.set(v.vid,[await uploadAttachment(v.vid,v.fileObj)])}catch(e){failed=e.message}}
+    if(btn){btn.disabled=false;btn.textContent=`${pimp.vouchers.length}伝票を登録する`}
+    if(failed&&!await askConfirm(`請求書のPDFを保存できませんでした（${failed}）。\nSupabaseに書類の保存場所（invoices）が作られていない可能性があります。\nPDFを添付せずに登録しますか？`,'PDFなしで登録する',false))return;
+  }
   const newSups=[],rows=[],items=[],removeIds=[];
   for(const v of pimp.vouchers){
+    const oldRows=DB.purchases.filter(p=>p.voucher===v.vid);const oldAtt=(oldRows[0]&&oldRows[0].attachments)||[];
+    const att=attMap.has(v.vid)?attMap.get(v.vid):oldAtt;if(attMap.has(v.vid))oldAtt.forEach(a=>oldPaths.push(a.path));
     let sup=DB.suppliers.find(s=>normName(s.name).toLowerCase()===v.supplier.toLowerCase())||newSups.find(s=>s.name===v.supplier);
     if(!sup){sup={id:uid(),name:v.supplier,memo:''};newSups.push(sup)}
     const c=pimpCalc(v);
     DB.purchases.filter(p=>p.voucher===v.vid).forEach(p=>removeIds.push(p.id));
     v.lines.forEach((l,li)=>{const x=c.ls[li];const q=Number(l.qty),per=Number(l.per)||1;
-      rows.push({id:v.vid+'_'+li,voucher:v.vid,date:v.date,supplier_id:sup.id,no:v.no,doc:v.doc,currency:v.currency,fx:c.fx,fx_mode:v.currency==='JPY'?'manual':(v.fxMode==='manual'?'manual':'table'),product_id:l.p.id,qty:q*per,unit_price:(q*(Number(l.unit)||0)+(Number(l.tax)||0))/(q*per),extra:x.extJpy,extra_fx:x.extFx,sku:l.sku,desc:l.desc,memo:v.file?'PDF：'+v.file:''});
+      rows.push({id:v.vid+'_'+li,voucher:v.vid,date:v.date,supplier_id:sup.id,no:v.no,doc:v.doc,currency:v.currency,fx:c.fx,fx_mode:v.currency==='JPY'?'manual':(v.fxMode==='manual'?'manual':'table'),product_id:l.p.id,qty:q*per,unit_price:(q*(Number(l.unit)||0)+(Number(l.tax)||0))/(q*per),extra:x.extJpy,extra_fx:x.extFx,sku:l.sku,desc:l.desc,attachments:att,memo:v.file?'PDF：'+v.file:''});
       items.push({id:supItemId(v.supplier,l.sku,l.desc),supplier:v.supplier,sku:meaningfulSku(l.sku),desc:l.desc,product_id:l.p.id,per});
     });
   }
@@ -1102,6 +1146,7 @@ async function savePimp(){
   await save('suppliers',newSups);
   await removeRows('purchases',removeIds.filter(id=>!rows.some(r=>r.id===id)));
   await save('purchases',rows);await save('supitems',items);
+  removeAttachments(oldPaths);
   const n=pimp.vouchers.length;pimp=null;pdfQueue=[];toast(`${n}伝票を登録しました`);render();
 }
 
@@ -1269,7 +1314,7 @@ async function readPdfs(files){
       let j;
       if(aiMode==='function'){j=await callInvoiceFunction(buildInvoicePrompt(text,'pdf'),f)}
       else{const opts={modelTier:'default'};if(images.length)opts.images=images;j=await aiSample.json(buildInvoicePrompt(text,images.length>0),opts)}
-      const v=invoiceToVoucher(j||{},f.name);
+      const v=invoiceToVoucher(j||{},f.name);v.fileObj=f;
       if(!pimp)pimp={file:'請求書PDF',vouchers:[],errs:[]};
       pimp.vouchers=pimp.vouchers.filter(x=>x.vid!==v.vid);pimp.vouchers.push(v);
       setPdfState(q,'done',v.blockers.length?'読み取りました。確認が必要な点があります':'読み取りました。下で確認してください');
