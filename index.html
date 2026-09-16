@@ -459,7 +459,7 @@ function viewDash(el){
   if(A.manualCount)notes.push(`<div class="note">手入力の原価で計算した売上 ${yen(A.manualAmount)}（${A.manualCount}件）があります。請求書を登録すると、仕入単価に置き換わります。</div>`);
   if(A.nocostCount)notes.push(`<div class="note">原価のない売上 ${yen(A.nocost)}（${A.nocostCount}件：手数料・値引きなど）は、原価0円として粗利に含めています。</div>`);
   if(A.shippingCount)notes.push(`<div class="note">送料として受け取った ${yen(A.shipping)}（${A.shippingCount}件）は、商品の売上・粗利とは別にしています。</div>`);
-  {const hi=prodRows.filter(r=>r.key!=='__nocost'&&r.margin!=null&&r.margin>=0.8&&r.cost>0);if(hi.length)notes.push(`<div class="note warn">粗利率が80%を超える商品が${hi.length}点あります（表に「入数を確認」と表示）。販売のセットと仕入の単位が違う（例：10本セットで売り、1本ずつ仕入れている）のに、入数が1のままの可能性があります。<button class="linkbtn" data-go="sets">Bカートのセットで入数を確認</button></div>`)}
+  {const hi=prodRows.filter(r=>r.key!=='__nocost'&&r.margin!=null&&r.margin>=0.8&&r.cost>0);if(hi.length)notes.push(`<div class="note warn">粗利率が80%を超える商品が${hi.length}点あります（表の「入数を直す」から直せます）。販売のセットと仕入の単位が違う（例：10本セットで売り、1本ずつ仕入れている）のに、入数が1のままの可能性があります。</div>`)}
   if(lowCount)notes.push(`<div class="note">粗利率が${settings.lowMargin}%を下回る商品が${lowCount}点あります（表で赤く表示）。</div>`);
   const empty=!DB.sales.length;
   el.innerHTML=`
@@ -515,10 +515,11 @@ function drawDashTable(A){
     <td class="name">${esc(r.label)}</td><td class="n">${num(r.qty)}</td><td class="n">${yen(r.sales)}</td>
     ${isP?`<td class="n">${yen(r.avgSell)}</td><td class="n">${yen(r.avgCost)}</td>`:`<td class="n">${yen(r.cost)}</td>`}
     <td class="n ${r.gp<0?'neg':''}">${yen(r.gp)}</td><td class="n ${r.pid&&r.margin!=null&&r.margin<low?'low':''}">${r.pid||!isP?pct(r.margin):'—'}</td>
-    <td>${r.none?`<span class="tag warn">原価不明 ${r.none}件</span>`:''}${r.est?` <span class="tag est">推定 ${r.est}件</span>`:''}${r.manual?` <span class="tag buy">手入力原価 ${r.manual}件</span>`:''}${r.pid&&r.margin!=null&&r.margin>=0.8&&r.cost>0?' <span class="tag warn">入数を確認</span>':''}</td></tr>`).join('');
+    <td>${r.none?`<span class="tag warn">原価不明 ${r.none}件</span>`:''}${r.est?` <span class="tag est">推定 ${r.est}件</span>`:''}${r.manual?` <span class="tag buy">手入力原価 ${r.manual}件</span>`:''}${r.pid&&r.margin!=null&&r.margin>=0.8&&r.cost>0?` <button class="btn small danger" data-per="${esc(r.pid)}">入数を直す</button>`:''}${r.pid&&!(r.margin!=null&&r.margin>=0.8&&r.cost>0)?` <button class="linkbtn" data-per="${esc(r.pid)}" style="font-size:.8rem">入数</button>`:''}</td></tr>`).join('');
   const t=$('#dtable');
   t.innerHTML=rows.length?`<table><thead>${head}</thead><tbody>${body}</tbody></table>`:`<p class="hint" style="padding:1rem">この期間の販売はありません。</p>`;
   t.querySelectorAll('[data-sort]').forEach(h=>h.onclick=()=>{if(dash.sort===h.dataset.sort)dash.dir*=-1;else{dash.sort=h.dataset.sort;dash.dir=h.dataset.sort==='label'?1:-1}drawDashTable(A)});
+  t.querySelectorAll('[data-per]').forEach(b=>b.onclick=e=>{e.stopPropagation();openPerEditor(b.dataset.per)});
   t.querySelectorAll('[data-pid]').forEach(tr=>{tr.onclick=()=>openProduct(tr.dataset.pid);tr.onkeydown=e=>{if(e.key==='Enter')openProduct(tr.dataset.pid)}});
 }
 function drawChart(A,from,to){
@@ -1360,6 +1361,38 @@ function viewProducts(el){
   $('#pq').oninput=e=>{prodQ=e.target.value;const pos=e.target.selectionStart;render();const i=$('#pq');i.focus();i.setSelectionRange(pos,pos)};
   el.querySelectorAll('[data-pid]').forEach(tr=>{tr.onclick=()=>openProduct(tr.dataset.pid);tr.onkeydown=e=>{if(e.key==='Enter')openProduct(tr.dataset.pid)}});
 }
+function openPerEditor(pid){
+  const p=DB.products.find(x=>x.id===pid);if(!p)return;
+  const c=getCalc(),k=c.stock.get(pid);
+  const unitNow=k&&k.last?k.last.cost:(Number(p.std_cost)>0?Number(p.std_cost):null);
+  const psets=DB.sets.filter(x=>x.product_id===pid);const pmaps=DB.codemap.filter(x=>x.product_id===pid);
+  const rows=[...psets.map(x=>({kind:'set',id:x.id,label:x.product_name,sub:`${x.set_name}・セット${x.set_id}`,price:x.price,per:Number(x.per)||1,hint:x.per_hint})),
+    ...pmaps.map(x=>({kind:'map',id:x.id,label:x.id.slice(2).replace('|','／'),sub:'販売の取込で紐付け',price:null,per:Number(x.per)||1,hint:null}))];
+  const d=openModal(`<h2>入数を直す</h2>
+    <p><strong>${esc(prodLabel(p))}</strong></p>
+    <p class="hint">入数は「販売の1セットが、仕入の何単位分か」です。例：10バイアル入りのセットで販売し、仕入は1バイアルずつなら10。<br>今の仕入の原価単価：<strong class="n">${yen(unitNow)}</strong>${p.unit?`（1${esc(p.unit)}あたり）`:''}</p>
+    ${rows.length?`<div class="tablewrap" style="margin-top:.6rem"><table><thead><tr><th>販売のセット</th><th class="n">販売単価</th><th class="n">入数</th><th class="n">1セットの原価</th><th class="n">粗利率</th></tr></thead><tbody>
+    ${rows.map((r,i)=>`<tr data-pe="${i}"><td>${esc(r.label)}<span class="sub">${esc(r.sub)}</span></td><td class="n">${yen(r.price)}</td>
+      <td><input type="number" min="0" step="any" class="n" data-pein value="${r.per}" style="width:5rem">${r.hint&&r.hint!==r.per?`<button class="btn small" data-pehint="${r.hint}" style="display:block;margin-top:.2rem">候補 ${r.hint}</button>`:''}</td>
+      <td class="n" data-pecost>—</td><td class="n" data-pemg>—</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="actions"><button class="btn" data-pecancel>やめる</button><button class="btn primary" data-pesave>保存する</button></div>`
+    :'<p class="note warn">この商品に紐付いている販売のセットがありません。「Bカートのセット」か「販売の取込」で紐付けてください。</p>'}`,true);
+  const recalc=()=>d.querySelectorAll('[data-pe]').forEach(tr=>{const r=rows[+tr.dataset.pe];const per=Number(tr.querySelector('[data-pein]').value)||0;
+    const cost=unitNow!=null&&per>0?unitNow*per:null;tr.querySelector('[data-pecost]').textContent=yen(cost);
+    const mg=cost!=null&&r.price?(r.price-cost)/r.price:null;const el=tr.querySelector('[data-pemg]');el.textContent=pct(mg);el.className='n '+(mg!=null&&(mg<settings.lowMargin/100||mg>=0.8)?'low':'')});
+  d.addEventListener('input',recalc);recalc();
+  d.querySelectorAll('[data-pehint]').forEach(b=>b.onclick=()=>{b.closest('tr').querySelector('[data-pein]').value=b.dataset.pehint;recalc()});
+  const cc=d.querySelector('[data-pecancel]');if(cc)cc.onclick=closeModal;
+  const sv=d.querySelector('[data-pesave]');
+  if(sv)sv.onclick=async()=>{
+    const sets=[],maps=[];let bad=false;
+    d.querySelectorAll('[data-pe]').forEach(tr=>{const r=rows[+tr.dataset.pe];const per=Number(tr.querySelector('[data-pein]').value);if(!(per>0)){bad=true;return}if(per===r.per)return;
+      if(r.kind==='set')sets.push(Object.assign({},DB.sets.find(x=>x.id===r.id),{per}));else maps.push(Object.assign({},DB.codemap.find(x=>x.id===r.id),{per}))});
+    if(bad){toast('入数は0より大きい数にしてください','err');return}
+    if(sets.length)await save('sets',sets);if(maps.length)await save('codemap',maps);
+    closeModal();toast(sets.length+maps.length?'入数を保存しました。粗利を計算し直しました':'変更はありません');render()};
+}
 function openProduct(pid){
   const p=DB.products.find(x=>x.id===pid);if(!p)return;
   const c=getCalc(),st=purchaseStats().get(pid),k=c.stock.get(pid);
@@ -1384,7 +1417,7 @@ function openProduct(pid){
     ${purchases.slice(0,100).map(x=>`<tr><td>${x.date}</td><td>${esc(supName(x.supplier_id))}${x.doc==='proforma'?' <span class="tag est">プロフォーマ</span>':''}${x.desc?`<span class="sub">${esc(x.sku?x.sku+'｜':'')}${esc(x.desc)}</span>`:''}</td><td class="n">${num(x.qty)}</td><td class="n">${x.currency} ${num(x.unit_price,2)}</td><td class="n">${yen(unitCost(x))}</td></tr>`).join('')}
     </tbody></table></div>`:'<p class="hint">ありません。</p>'}</section>
     ${psup.length?`<section><h3>仕入先の品目</h3><div class="tablewrap"><table><thead><tr><th>仕入先</th><th>SKU</th><th>品名（請求書）</th><th class="n">入数</th><th></th></tr></thead><tbody>${psup.map(x=>`<tr><td>${esc(x.supplier)}</td><td>${esc(x.sku||'')}</td><td>${esc(x.desc)}</td><td class="n">${num(x.per||1,2)}</td><td><button class="btn small" data-unsup="${esc(x.id)}">対応を解除</button></td></tr>`).join('')}</tbody></table></div><p class="hint">解除すると、次に同じ品目を取り込むときに仕入商品を選び直します。登録済みの仕入は変わりません。</p></section>`:''}
-    ${psets.length?`<section><h3>この商品として売っているBカートのセット</h3><div class="tablewrap"><table><thead><tr><th>セットID</th><th>商品名／セット名</th><th class="n">入数</th><th class="n">単価</th><th>状態</th></tr></thead><tbody>${psets.map(x=>`<tr><td>${esc(x.set_id)}</td><td>${esc(x.product_name)}<span class="sub">${esc(x.set_name)}</span></td><td class="n">${num(x.per||1,2)}</td><td class="n">${yen(x.price)}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table></div></section>`:''}
+    ${psets.length?`<section><div class="spread" style="margin-bottom:.4rem"><h3>この商品として売っているBカートのセット</h3><button class="btn small" data-openper>入数を直す</button></div><div class="tablewrap"><table><thead><tr><th>セットID</th><th>商品名／セット名</th><th class="n">入数</th><th class="n">単価</th><th>状態</th></tr></thead><tbody>${psets.map(x=>`<tr><td>${esc(x.set_id)}</td><td>${esc(x.product_name)}<span class="sub">${esc(x.set_name)}</span></td><td class="n">${num(x.per||1,2)}</td><td class="n">${yen(x.price)}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table></div></section>`:''}
     ${maps.length?`<section><h3>紐付けている販売コード</h3><p>${maps.map(m=>esc(m.id.slice(2))).join('、')}</p></section>`:''}
     <section><h3>別の商品にまとめる</h3>
       <p class="hint">同じ中身の商品が2つできてしまったときに使います（例：請求書から作った英語名の商品と、Bカートから作った商品）。この商品の仕入・請求書の品目の対応・Bカートのセットと販売の紐付けをすべて、選んだ商品に移してから、この商品を削除します。</p>
@@ -1396,6 +1429,7 @@ function openProduct(pid){
       <label class="field" style="margin-top:.6rem"><span>メモ</span><input id="epMemo" value="${esc(p.memo||'')}"></label>
       <div class="actions"><button class="btn danger" id="epDel">商品を削除</button><button class="btn primary" id="epSave">変更を保存</button></div>
     </section>`,true);
+  {const op=d.querySelector('[data-openper]');if(op)op.onclick=()=>{closeModal();openPerEditor(pid)}}
   d.querySelectorAll('[data-unsup]').forEach(b=>b.onclick=async()=>{await removeRows('supitems',b.dataset.unsup);closeModal();openProduct(pid);toast('対応を解除しました')});
   $('#mgGo',d).onclick=async()=>{
     const to=findProduct($('#mgTo',d).value);
