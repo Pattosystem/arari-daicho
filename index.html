@@ -279,6 +279,7 @@ async function loadAll(){
 }
 async function save(t,rows){
   rows=[].concat(rows);if(!rows.length)return;
+  rows=[...new Map(rows.map(r=>[r.id,r])).values()];// 同じIDが1回の保存に2回入るとSupabaseが受け付けないため、後のものだけ残す
   const map=new Map(DB[t].map(r=>[r.id,r]));rows.forEach(r=>map.set(r.id,r));DB[t]=[...map.values()];invalidate();
   try{await backend.put(t,rows)}catch(e){toast('保存できませんでした：'+e.message,'err');throw e}
 }
